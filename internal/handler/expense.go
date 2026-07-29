@@ -1,4 +1,4 @@
-package handlers
+package handler
 
 import (
 	"encoding/json"
@@ -128,7 +128,7 @@ func updateExpenseById (w http.ResponseWriter, r *http.Request) {
     http.Error(w, "expense not found", http.StatusNotFound)
 }
 
-func store.ExpensesHandler(w http.ResponseWriter, r *http.Request) {
+func ExpensesHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	switch r.Method {
 	case http.MethodGet:
