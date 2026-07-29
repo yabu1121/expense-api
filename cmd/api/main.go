@@ -6,10 +6,15 @@ import (
 	"net/http"
 
 	"github.com/yabu1121/expense-api/internal/handler"
+	"github.com/yabu1121/expense-api/internal/store"
 )
 
 func main() {
 	fmt.Println("server is running on port 8080")
+
+	if err := store.InitDB(); err != nil {
+		log.Fatal(err)
+	}
 
 	http.HandleFunc("/health", handler.HealthHandler)
 	http.HandleFunc("/version", handler.VersionHandler)
