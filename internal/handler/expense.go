@@ -7,30 +7,11 @@ import (
 	"strconv"
 
 	"github.com/yabu1121/expense-api/internal/model"
+	"github.com/yabu1121/expense-api/internal/store"
 )
 
-var expenses = []model.Expense{
-	{
-		ID:       1,
-		Title:    "pepper lunch",
-		Amount:   900,
-		Category: "lunch",
-	},
-	{
-		ID:       2,
-		Title:    "cafe latte",
-		Amount:   500,
-		Category: "coffee"},
-	{
-		ID:       3,
-		Title:    "ts book",
-		Amount:   700,
-		Category: "book",
-	},
-}
-
 func expenseHandler(w http.ResponseWriter, r *http.Request) {
-	jsonData, err := json.Marshal(expenses)
+	jsonData, err := json.Marshal(store.Expenses)
 	if err != nil {
 		log.Println(err)
 		return
@@ -48,8 +29,8 @@ func expensePostHandler(w http.ResponseWriter, r *http.Request) {
 
 	nextID := 1
 
-	if len(expenses) > 0 {
-		nextID = expenses[len(expenses)-1].ID + 1
+	if len(store.Expenses) > 0 {
+		nextID = store.Expenses[len(store.Expenses)-1].ID + 1
 	}
 
 	var expense model.Expense
@@ -59,7 +40,7 @@ func expensePostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	expense.ID = nextID
-	expenses = append(expenses, expense)
+	store.Expenses = append(store.Expenses, expense)
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(expense); err != nil {
 		log.Println(err)
@@ -77,7 +58,7 @@ func getExpenseById(w http.ResponseWriter, r *http.Request) {
 	found := false
 
 	var expense model.Expense
-	for _, e := range expenses {
+	for _, e := range store.Expenses {
 		if e.ID == id {
 			expense = e
 			found = true
@@ -103,7 +84,7 @@ func deleteExpenseById(w http.ResponseWriter, r *http.Request) {
 	found := false
 	var targetIndex int
 
-	for i, e := range expenses {
+	for i, e := range store.Expenses {
 		if e.ID == id {
 			found = true
 			targetIndex = i
@@ -114,9 +95,9 @@ func deleteExpenseById(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "expense not found", http.StatusNotFound)
 		return
 	}
-	expenses = append(
-		expenses[:targetIndex],
-		expenses[targetIndex + 1:]...
+	store.Expenses = append(
+		store.Expenses[:targetIndex],
+		store.Expenses[targetIndex + 1:]...
 	)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -134,10 +115,10 @@ func updateExpenseById (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for i, expense := range expenses {
+	for i, expense := range store.Expenses {
         if expense.ID == id {
             updatedExpense.ID = id
-            expenses[i] = updatedExpense
+            store.Expenses[i] = updatedExpense
             if err := json.NewEncoder(w).Encode(updatedExpense); err != nil {
                 log.Println(err)
             }
@@ -147,7 +128,7 @@ func updateExpenseById (w http.ResponseWriter, r *http.Request) {
     http.Error(w, "expense not found", http.StatusNotFound)
 }
 
-func ExpensesHandler(w http.ResponseWriter, r *http.Request) {
+func store.ExpensesHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	switch r.Method {
 	case http.MethodGet:
