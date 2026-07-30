@@ -9,11 +9,28 @@ import (
 	"strconv"
 
 	"github.com/yabu1121/expense-api/internal/model"
-	"github.com/yabu1121/expense-api/internal/store"
 )
 
-func getAllExpense(w http.ResponseWriter, r *http.Request) {
-	expenses, err := store.GetAllExpenses()
+type ExpenseStore interface {
+	GetAllExpenses() ([]model.Expense, error)
+	GetExpenseByID(id int) (*model.Expense, error)
+	CreateExpense(expense model.Expense) (*model.Expense, error)
+	UpdateExpense(expense model.Expense) (*model.Expense, error)
+	DeleteExpense(id int) error
+}
+
+type ExpenseHandler struct {
+	store ExpenseStore
+}
+
+func NewExpenseHandler (store ExpenseStore) *ExpenseHandler {
+	return &ExpenseHandler{
+		store: store,
+	}
+}
+
+func (h *ExpenseHandler) getAllExpense(w http.ResponseWriter, r *http.Request) {
+	expenses, err := h.store.GetAllExpenses()
 	if err != nil {
 		log.Printf("failed to get expenses: %v", err)
 		http.Error(
@@ -32,7 +49,7 @@ func getAllExpense(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func createExpense(w http.ResponseWriter, r *http.Request) {
+func (h *ExpenseHandler) createExpense(w http.ResponseWriter, r *http.Request) {
 	var expense model.Expense
 
 	if err := json.NewDecoder(r.Body).Decode(&expense); err != nil {
@@ -44,7 +61,7 @@ func createExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdExpense, err := store.CreateExpense(expense)
+	createdExpense, err := h.store.CreateExpense(expense)
 	if err != nil {
 		log.Printf("failed to create expense: %v", err)
 		http.Error(
@@ -63,7 +80,7 @@ func createExpense(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getExpenseByID(w http.ResponseWriter, r *http.Request) {
+func (h *ExpenseHandler) getExpenseByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		http.Error(
@@ -74,7 +91,7 @@ func getExpenseByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expense, err := store.GetExpenseByID(id)
+	expense, err := h.store.GetExpenseByID(id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(
@@ -101,7 +118,7 @@ func getExpenseByID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func deleteExpenseByID(w http.ResponseWriter, r *http.Request) {
+func (h *ExpenseHandler) deleteExpenseByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		http.Error(
@@ -112,7 +129,7 @@ func deleteExpenseByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := store.DeleteExpense(id); err != nil {
+	if err := h.store.DeleteExpense(id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(
 				w,
@@ -132,7 +149,7 @@ func deleteExpenseByID(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func updateExpenseByID(w http.ResponseWriter, r *http.Request) {
+func (h *ExpenseHandler) updateExpenseByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		http.Error(
@@ -155,7 +172,7 @@ func updateExpenseByID(w http.ResponseWriter, r *http.Request) {
 	}
 	expense.ID = id
 
-	updatedExpense, err := store.UpdateExpense(expense)
+	updatedExpense, err := h.store.UpdateExpense(expense)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(
@@ -182,33 +199,33 @@ func updateExpenseByID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func ExpensesHandler(w http.ResponseWriter, r *http.Request) {
+func (h *ExpenseHandler) ExpensesHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	switch r.Method {
 	case http.MethodGet:
 		if id != "" {
-			getExpenseByID(w, r)
+			h.getExpenseByID(w, r)
 			return
 		}
-		getAllExpense(w, r)
+		h.getAllExpense(w, r)
 		return
 	case http.MethodPost:
 		if id != "" {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		createExpense(w, r)
+		h.createExpense(w, r)
 		return
 	case http.MethodDelete:
 		if id != "" {
-			deleteExpenseByID(w, r)
+			h.deleteExpenseByID(w, r)
 			return
 		}
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	case http.MethodPut:
 		if id != "" {
-			updateExpenseByID(w, r)
+			h.updateExpenseByID(w, r)
 			return
 		}
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
