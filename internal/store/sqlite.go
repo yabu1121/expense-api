@@ -140,7 +140,7 @@ func DeleteExpense(id int) error {
 	if err != nil {
 		return err
 	}
-	num, err := res.RowsAffected();
+	num, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
