@@ -51,7 +51,7 @@ func GetAllExpenses() ([]model.Expense, error) {
 	}
 	defer rows.Close()
 
-	var expenses []model.Expense
+	expenses := make([]model.Expense, 0)
 
 	for rows.Next() {
 		var expense model.Expense
