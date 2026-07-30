@@ -2,7 +2,6 @@ package store
 
 import (
 	"database/sql"
-	"errors"
 
 	"github.com/yabu1121/expense-api/internal/model"
 	_ "modernc.org/sqlite"
@@ -127,7 +126,7 @@ func UpdateExpense(expense model.Expense) (*model.Expense, error) {
 		return nil, err
 	}
 	if num == 0 {
-		return nil, errors.New("expense not found")
+		return nil, sql.ErrNoRows
 	}
 
 	return &expense, nil
@@ -146,7 +145,7 @@ func DeleteExpense(id int) error {
 		return err
 	}
 	if num == 0 {
-		return errors.New("expense not found")
+		return sql.ErrNoRows
 	}
 	return nil
 }
