@@ -7,26 +7,37 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-var DB *sql.DB
-
-func InitDB() error {
-	db, err := sql.Open("sqlite", "expenses.db")
-	if err != nil {
-		return err
-	}
-	if err := db.Ping(); err != nil {
-		return err
-	}
-	DB = db
-
-	if err := CreateTable(); err != nil {
-		return err
-	}
-	return nil
+type SQLiteStore struct {
+	db *sql.DB
 }
 
-func CreateTable() error {
-	_, err := DB.Exec(
+func NewSQLiteStore() (*SQLiteStore, error) {
+	db, err := sql.Open("sqlite", "expenses.db")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+
+	sqliteStore := &SQLiteStore{
+		db: db,
+	}
+
+	if err := sqliteStore.createTable(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return sqliteStore, nil
+}
+
+func (s *SQLiteStore) Close() error {
+	return s.db.Close()
+}
+
+func (s *SQLiteStore) createTable() error {
+	_, err := s.db.Exec(
 		`CREATE TABLE IF NOT EXISTS expenses(
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			title TEXT NOT NULL,
@@ -40,8 +51,8 @@ func CreateTable() error {
 	return nil
 }
 
-func GetAllExpenses() ([]model.Expense, error) {
-	rows, err := DB.Query(`
+func (s *SQLiteStore) GetAllExpenses() ([]model.Expense, error) {
+	rows, err := s.db.Query(`
 		select id, title, amount, category
 		from expenses
 		order by id asc
@@ -73,8 +84,8 @@ func GetAllExpenses() ([]model.Expense, error) {
 	return expenses, nil
 }
 
-func GetExpenseByID(id int) (*model.Expense, error) {
-	row := DB.QueryRow(`
+func (s *SQLiteStore) GetExpenseByID(id int) (*model.Expense, error) {
+	row := s.db.QueryRow(`
 		select id, title, amount, category
 		from expenses
 		where id = ?
@@ -92,8 +103,8 @@ func GetExpenseByID(id int) (*model.Expense, error) {
 	return &expense, nil
 }
 
-func CreateExpense(expense model.Expense) (*model.Expense, error) {
-	result, err := DB.Exec(`
+func (s *SQLiteStore) CreateExpense(expense model.Expense) (*model.Expense, error) {
+	result, err := s.db.Exec(`
 		insert into expenses (title, amount, category)
 		values(?, ?, ?)
 	`, expense.Title, expense.Amount, expense.Category)
@@ -111,8 +122,8 @@ func CreateExpense(expense model.Expense) (*model.Expense, error) {
 	return &expense, nil
 }
 
-func UpdateExpense(expense model.Expense) (*model.Expense, error) {
-	result, err := DB.Exec(`
+func (s *SQLiteStore) UpdateExpense(expense model.Expense) (*model.Expense, error) {
+	result, err := s.db.Exec(`
 		update expenses
 		set title = ?, amount = ?, category = ?
 		where id = ?
@@ -132,8 +143,8 @@ func UpdateExpense(expense model.Expense) (*model.Expense, error) {
 	return &expense, nil
 }
 
-func DeleteExpense(id int) error {
-	res, err := DB.Exec(`
+func (s *SQLiteStore) DeleteExpense(id int) error {
+	res, err := s.db.Exec(`
 		delete from expenses
 		where id = ?
 	`, id)

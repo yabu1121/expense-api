@@ -10,17 +10,25 @@ import (
 )
 
 func main() {
-	fmt.Println("server is running on port 8080")
-
-	if err := store.InitDB(); err != nil {
+	expenseStore, err := store.NewSQLiteStore()
+	if err != nil {
 		log.Fatal(err)
 	}
+	defer expenseStore.Close()
 
-	http.HandleFunc("/health", handler.HealthHandler)
-	http.HandleFunc("/version", handler.VersionHandler)
+	expenseHandler := handler.NewExpenseHandler(expenseStore)
 
-	http.HandleFunc("/expenses", handler.ExpensesHandler)
-	http.HandleFunc("/expenses/{id}", handler.ExpensesHandler)
+	mux := http.NewServeMux()
+
+
+	mux.HandleFunc("/health", handler.HealthHandler)
+	mux.HandleFunc("/version", handler.VersionHandler)
+
+	mux.Handle("/expenses", expenseHandler)
+	mux.Handle("/expenses/{id}", expenseHandler)
+
+	fmt.Println("server is running on port 8080")
+
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal(err)
 	}
