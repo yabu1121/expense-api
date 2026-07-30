@@ -199,7 +199,7 @@ func (h *ExpenseHandler) updateExpenseByID(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func (h *ExpenseHandler) ExpensesHandler(w http.ResponseWriter, r *http.Request) {
+func (h *ExpenseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	switch r.Method {
 	case http.MethodGet:
