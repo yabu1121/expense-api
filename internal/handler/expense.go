@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -10,121 +12,174 @@ import (
 	"github.com/yabu1121/expense-api/internal/store"
 )
 
-func expenseHandler(w http.ResponseWriter, r *http.Request) {
-	jsonData, err := json.Marshal(store.Expenses)
+func getAllExpense(w http.ResponseWriter, r *http.Request) {
+	expenses, err := store.GetAllExpenses()
 	if err != nil {
-		log.Println(err)
+		log.Printf("failed to get expenses: %v", err)
+		http.Error(
+			w,
+			"failed to get expenses",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if _, err := w.Write(jsonData); err != nil {
-		log.Println(err)
-		return
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(expenses); err != nil {
+		log.Printf("failed to encode response: %v", err)
 	}
 }
 
-func expensePostHandler(w http.ResponseWriter, r *http.Request) {
+func createExpense(w http.ResponseWriter, r *http.Request) {
+	var expense model.Expense
+
+	if err := json.NewDecoder(r.Body).Decode(&expense); err != nil {
+		http.Error(
+			w,
+			"invalid request body",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	createdExpense, err := store.CreateExpense(expense)
+	if err != nil {
+		log.Printf("failed to create expense: %v", err)
+		http.Error(
+			w,
+			"failed to create expense: %v",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 
-	nextID := 1
+	if err := json.NewEncoder(w).Encode(createdExpense); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
+}
 
-	if len(store.Expenses) > 0 {
-		nextID = store.Expenses[len(store.Expenses)-1].ID + 1
+func getExpenseByID(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		http.Error(
+			w,
+			"invalid expense id",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	expense, err := store.GetExpenseByID(id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(
+				w,
+				"expense not found",
+				http.StatusNotFound,
+			)
+			return
+		}
+		log.Println(err)
+		http.Error(
+			w,
+			"failed to get expense",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(expense); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
+}
+
+func deleteExpenseByID(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		http.Error(
+			w,
+			"invalid expense id",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	if err := store.DeleteExpense(id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(
+				w,
+				"expense not found",
+				http.StatusNotFound,
+			)
+			return
+		}
+		log.Printf("failed to delete expense: %v", err)
+		http.Error(
+			w,
+			"failed to delete expense",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func updateExpenseByID(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		http.Error(
+			w,
+			"invalid expense id",
+			http.StatusBadRequest,
+		)
+		return
 	}
 
 	var expense model.Expense
 
 	if err := json.NewDecoder(r.Body).Decode(&expense); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(
+			w,
+			"invalid request body",
+			http.StatusBadRequest,
+		)
 		return
 	}
-	expense.ID = nextID
-	store.Expenses = append(store.Expenses, expense)
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(expense); err != nil {
-		log.Println(err)
-		return
-	}
+	expense.ID = id
 
-}
-
-func getExpenseById(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(r.PathValue("id"))
+	updatedExpense, err := store.UpdateExpense(expense)
 	if err != nil {
-		log.Println(err)
-		return
-	}
-	found := false
-
-	var expense model.Expense
-	for _, e := range store.Expenses {
-		if e.ID == id {
-			expense = e
-			found = true
-			break
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(
+				w,
+				"expense not found",
+				http.StatusNotFound,
+			)
+			return
 		}
-	}
-	if !found {
-		http.Error(w, "expense not found", http.StatusNotFound)
+		log.Printf("failed to update expenses: %v", err)
+		http.Error(
+			w,
+			"failed to update expense",
+			http.StatusInternalServerError,
+		)
 		return
 	}
-	if err := json.NewEncoder(w).Encode(expense); err != nil {
-		log.Println(err)
-		return
-	}
-}
 
-func deleteExpenseById(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(r.PathValue("id"))
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	found := false
-	var targetIndex int
-
-	for i, e := range store.Expenses {
-		if e.ID == id {
-			found = true
-			targetIndex = i
-			break
-		}
-	}
-	if !found {
-		http.Error(w, "expense not found", http.StatusNotFound)
-		return
-	}
-	store.Expenses = append(
-		store.Expenses[:targetIndex],
-		store.Expenses[targetIndex + 1:]...
-	)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func updateExpenseById (w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	id, err := strconv.Atoi(r.PathValue("id"))
-	if err != nil {
-		http.Error(w, "invalid expense id", http.StatusBadRequest)
-		return
-	}
-	var updatedExpense model.Expense
-	if err := json.NewDecoder(r.Body).Decode(&updatedExpense); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
+	w.WriteHeader(http.StatusOK)
 
-	for i, expense := range store.Expenses {
-        if expense.ID == id {
-            updatedExpense.ID = id
-            store.Expenses[i] = updatedExpense
-            if err := json.NewEncoder(w).Encode(updatedExpense); err != nil {
-                log.Println(err)
-            }
-            return
-        }
-    }
+	if err := json.NewEncoder(w).Encode(updatedExpense); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
     http.Error(w, "expense not found", http.StatusNotFound)
 }
 
@@ -133,28 +188,28 @@ func ExpensesHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		if id != "" {
-			getExpenseById(w, r)
+			getExpenseByID(w, r)
 			return
 		}
-		expenseHandler(w, r)
+		getAllExpense(w, r)
 		return
 	case http.MethodPost:
 		if id != "" {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		expensePostHandler(w, r)
+		createExpense(w, r)
 		return
 	case http.MethodDelete:
 		if id != "" {
-			deleteExpenseById(w, r)
+			deleteExpenseByID(w, r)
 			return
 		}
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	case http.MethodPut:
 		if id != "" {
-			updateExpenseById(w, r)
+			updateExpenseByID(w, r)
 			return
 		}
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/yabu1121/expense-api/internal/model"
-	"golang.org/x/tools/go/analysis/passes/defers"
 	_ "modernc.org/sqlite"
 )
 
