@@ -49,7 +49,7 @@ func createExpense(w http.ResponseWriter, r *http.Request) {
 		log.Printf("failed to create expense: %v", err)
 		http.Error(
 			w,
-			"failed to create expense: %v",
+			"failed to create expense",
 			http.StatusInternalServerError,
 		)
 		return
@@ -180,7 +180,6 @@ func updateExpenseByID(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(updatedExpense); err != nil {
 		log.Printf("failed to encode response: %v", err)
 	}
-    http.Error(w, "expense not found", http.StatusNotFound)
 }
 
 func ExpensesHandler(w http.ResponseWriter, r *http.Request) {
