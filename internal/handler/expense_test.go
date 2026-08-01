@@ -22,6 +22,10 @@ func (f *fakeExpenseStore) GetAllExpenses() ([]model.Expense, error) {
 }
 
 func (f *fakeExpenseStore) GetExpenseByID(id int) (*model.Expense, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	
 	for i := range f.expenses {
 		if f.expenses[i].ID == id {
 			return &f.expenses[i], nil
@@ -96,66 +100,111 @@ func TestGetAllExpenses(t *testing.T) {
 }
 
 func TestGetExpenseByID(t *testing.T) {
-	fakeStore := &fakeExpenseStore{
-		expenses: []model.Expense{
+	tests := []struct{
+		id string
+		name string
+		store *fakeExpenseStore
+		expectedStatus int
+		}{
 			{
-				ID: 1,
-				Title: "coffee",
-				Amount: 500,
-				Category: "food",
+				id: "1",
+				name: "success",
+				store: &fakeExpenseStore{
+					expenses: []model.Expense{
+						{
+							ID: 1,
+							Title: "coffee",
+							Amount: 500,
+							Category: "food",
+						},
+					},
+				},
+				expectedStatus: http.StatusOK,
 			},
-		},
-	}
+			{
+				id: "999",
+				name: "not found",
+				store: &fakeExpenseStore{},
+				expectedStatus: http.StatusNotFound,
+			},
+			{
+				id:"abd",
+				name: "invalid id",
+				store: &fakeExpenseStore{},
+				expectedStatus: http.StatusBadRequest,
+			},
+			{
+				id:"1",
+				name: "store error",
+				store: &fakeExpenseStore{
+					expenses: []model.Expense{
+						{
+							ID: 1,
+							Title: "coffee",
+							Amount: 500,
+							Category: "food",
+						},
+					},
+					err: errors.New("store error"),
+				},
+				expectedStatus: http.StatusInternalServerError,
+			},
+		}
 
-	handler := NewExpenseHandler(fakeStore)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewExpenseHandler(tt.store)
 
-	req := httptest.NewRequest(http.MethodGet, "/expenses/1", nil)
-	req.SetPathValue("id", "1")
-	recorder := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/expenses/" + tt.id , nil)
+			req.SetPathValue("id", tt.id)
+			recorder := httptest.NewRecorder()
 
-	handler.ServeHTTP(recorder, req)
+			handler.ServeHTTP(recorder, req)
 
-	if recorder.Code != http.StatusOK {
-		t.Fatalf(
-			"expected to %d, got %d",
-			http.StatusOK,
-			recorder.Code,
-		)
-	}
+			if recorder.Code != tt.expectedStatus {
+				t.Fatalf(
+					"expected status to %d, got %d",
+					tt.expectedStatus,
+					recorder.Code,
+				)
+			}
 
-	var expense model.Expense
+			if tt.expectedStatus == http.StatusOK {
+				var expense model.Expense
+				if err := json.NewDecoder(recorder.Body).Decode(&expense); err != nil {
+					t.Fatalf("failed to decode response: %v", err)
+				}
 
-	if err := json.NewDecoder(recorder.Body).Decode(&expense); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-
-	if expense.ID != 1 {
-		t.Fatalf(
-			"expected id %d, got %d",
-			1,
-			expense.ID,
-		)
-	}
-	if expense.Title != "coffee" {
-		t.Fatalf(
-			"expected title %v, got %v",
-			"coffee",
-			expense.Title,
-		)
-	}
-	if expense.Amount != 500 {
-		t.Fatalf(
-			"expected amount %d, got %d",
-			500,
-			expense.Amount,
-		)
-	}
-	if expense.Category != "food" {
-		t.Fatalf(
-			"expected category %v, got %v",
-			"food",
-			expense.Category,
-		)
+				if expense.ID != 1 {
+					t.Fatalf(
+						"expected id %d, got %d",
+						1,
+						expense.ID,
+					)
+				}
+				if expense.Title != "coffee" {
+					t.Fatalf(
+						"expected title %v, got %v",
+						"coffee",
+						expense.Title,
+					)
+				}
+				if expense.Amount != 500 {
+					t.Fatalf(
+						"expected amount %d, got %d",
+						500,
+						expense.Amount,
+					)
+				}
+				if expense.Category != "food" {
+					t.Fatalf(
+						"expected category %v, got %v",
+						"food",
+						expense.Category,
+					)
+				}
+			}
+		})
 	}
 }
 
