@@ -50,16 +50,15 @@ func TestCreateExpense(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		body           model.Expense
-		store          SQLiteStore
+		name  string
+		body  model.Expense
+		store SQLiteStore
 	}{
 		{
-			name:           "success",
-			store:          SQLiteStore{db: expenseStore.db},
-			body:           expense,
+			name:  "success",
+			store: SQLiteStore{db: expenseStore.db},
+			body:  expense,
 		},
-
 	}
 
 	for _, tt := range tests {
@@ -115,11 +114,10 @@ func TestGetExpenseByID(t *testing.T) {
 		expenseStore.Close()
 	})
 
-
 	t.Run("success", func(t *testing.T) {
 		expense := model.Expense{
-			Title: "coffee",
-			Amount: 500,
+			Title:    "coffee",
+			Amount:   500,
 			Category: "food",
 		}
 
@@ -174,6 +172,107 @@ func TestGetExpenseByID(t *testing.T) {
 
 		if got != nil {
 			t.Fatalf("expected nil expense, got: %+v", got)
+		}
+	})
+}
+
+func TestGetAllExpenses(t *testing.T) {
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "expenses.db")
+	expenseStore, err := NewSQLiteStore(filePath)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	t.Cleanup(func() {
+		expenseStore.Close()
+	})
+
+	expenses := []model.Expense{
+		{
+			Title:    "coffee",
+			Amount:   500,
+			Category: "food",
+		},
+		{
+			Title:    "latte",
+			Amount:   550,
+			Category: "food",
+		},
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		for _, e := range expenses {
+			_, err := expenseStore.CreateExpense(e)
+			if err != nil {
+				t.Fatalf("failed to create expense: %v", err)
+			}
+		}
+
+		gotExpenses, err := expenseStore.GetAllExpenses()
+		if err != nil {
+			t.Fatalf("failed to get all expenses: %v", err)
+		}
+
+		if len(gotExpenses) != 2 {
+			t.Fatalf("expected 2 expenses length, got %d", len(gotExpenses))
+		}
+
+		if gotExpenses[0].ID != 1 {
+			t.Fatalf(
+				"expected expense ID %d, got %d",
+				1,
+				gotExpenses[0].ID,
+			)
+		}
+		if gotExpenses[0].Title != "coffee" {
+			t.Fatalf(
+				"expected expense title %s, got %s",
+				"coffee",
+				gotExpenses[0].Title,
+			)
+		}
+		if gotExpenses[0].Amount != 500 {
+			t.Fatalf(
+				"expected expense amount %d, got %d",
+				500,
+				gotExpenses[0].Amount,
+			)
+		}
+		if gotExpenses[0].Category != "food" {
+			t.Fatalf(
+				"expected expense category %s, got %s",
+				"food",
+				gotExpenses[0].Category,
+			)
+		}
+
+		if gotExpenses[1].ID != 2 {
+			t.Fatalf(
+				"expected expense ID %d, got %d",
+				2,
+				gotExpenses[1].ID,
+			)
+		}
+		if gotExpenses[1].Title != "latte" {
+			t.Fatalf(
+				"expected expense title %s, got %s",
+				"latte",
+				gotExpenses[1].Title,
+			)
+		}
+		if gotExpenses[1].Amount != 550 {
+			t.Fatalf(
+				"expected expense amount %d, got %d",
+				550,
+				gotExpenses[1].Amount,
+			)
+		}
+		if gotExpenses[1].Category != "food" {
+			t.Fatalf(
+				"expected expense category %s, got %s",
+				"food",
+				gotExpenses[1].Category,
+			)
 		}
 	})
 }
