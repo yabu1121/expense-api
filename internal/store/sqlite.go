@@ -11,8 +11,8 @@ type SQLiteStore struct {
 	db *sql.DB
 }
 
-func NewSQLiteStore() (*SQLiteStore, error) {
-	db, err := sql.Open("sqlite", "expenses.db")
+func NewSQLiteStore(filePath string) (*SQLiteStore, error) {
+	db, err := sql.Open("sqlite", filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -98,9 +98,11 @@ func (s *SQLiteStore) GetExpenseByID(id int) (*model.Expense, error) {
 		&expense.Amount,
 		&expense.Category,
 	)
+
 	if err != nil {
 		return nil, err
 	}
+	
 	return &expense, nil
 }
 

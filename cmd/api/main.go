@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	expenseStore, err := store.NewSQLiteStore()
+	expenseStore, err := store.NewSQLiteStore("expenses.db")
 	if err != nil {
 		log.Fatal(err)
 	}
