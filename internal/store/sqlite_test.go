@@ -217,62 +217,36 @@ func TestGetAllExpenses(t *testing.T) {
 			t.Fatalf("expected 2 expenses length, got %d", len(gotExpenses))
 		}
 
-		if gotExpenses[0].ID != 1 {
-			t.Fatalf(
-				"expected expense ID %d, got %d",
-				1,
-				gotExpenses[0].ID,
-			)
-		}
-		if gotExpenses[0].Title != "coffee" {
-			t.Fatalf(
-				"expected expense title %s, got %s",
-				"coffee",
-				gotExpenses[0].Title,
-			)
-		}
-		if gotExpenses[0].Amount != 500 {
-			t.Fatalf(
-				"expected expense amount %d, got %d",
-				500,
-				gotExpenses[0].Amount,
-			)
-		}
-		if gotExpenses[0].Category != "food" {
-			t.Fatalf(
-				"expected expense category %s, got %s",
-				"food",
-				gotExpenses[0].Category,
-			)
-		}
+		for i, expected := range expenses {
+			if gotExpenses[i].ID != expected.ID {
+				t.Fatalf(
+					"expected expense ID %d, got %d",
+					expected.ID,
+					gotExpenses[i].ID,
+				)
+			}
+			if gotExpenses[i].Title != expected.Title {
+				t.Fatalf(
+					"expected expense title %s, got %s",
+					expected.Title,
+					gotExpenses[i].Title,
+				)
+			}
+			if gotExpenses[i].Amount != expected.Amount {
+				t.Fatalf(
+					"expected expense amount %d, got %d",
+					expected.Amount,
+					gotExpenses[i].Amount,
+				)
+			}
+			if gotExpenses[i].Category != expected.Category {
+				t.Fatalf(
+					"expected expense category %s, got %s",
+					expected.Category,
+					gotExpenses[i].Category,
+				)
+			}
 
-		if gotExpenses[1].ID != 2 {
-			t.Fatalf(
-				"expected expense ID %d, got %d",
-				2,
-				gotExpenses[1].ID,
-			)
-		}
-		if gotExpenses[1].Title != "latte" {
-			t.Fatalf(
-				"expected expense title %s, got %s",
-				"latte",
-				gotExpenses[1].Title,
-			)
-		}
-		if gotExpenses[1].Amount != 550 {
-			t.Fatalf(
-				"expected expense amount %d, got %d",
-				550,
-				gotExpenses[1].Amount,
-			)
-		}
-		if gotExpenses[1].Category != "food" {
-			t.Fatalf(
-				"expected expense category %s, got %s",
-				"food",
-				gotExpenses[1].Category,
-			)
 		}
 	})
 }
