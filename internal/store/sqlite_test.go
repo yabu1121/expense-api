@@ -213,3 +213,63 @@ func TestGetAllExpenses(t *testing.T) {
 		}
 	})
 }
+func TestUpdateExpense(t *testing.T) {
+	expenseStore := newTestStore(t)
+
+	expense := model.Expense{
+		Title: "coffee",
+		Amount: 500,
+		Category: "food",
+	}
+
+	_, err := expenseStore.CreateExpense(expense)
+	if err != nil {
+		t.Fatalf("failed to create expense: %v", err)
+	}
+
+	update := model.Expense{
+		ID: 1,
+		Title: "latte",
+		Amount: 550,
+		Category: "food",
+	}
+
+	updatedExpense, err := expenseStore.UpdateExpense(update)
+	if err != nil {
+		t.Fatalf("failed to update expense: %v", err)
+	}
+
+	got, err := expenseStore.GetExpenseByID(1)
+	if err != nil {
+		t.Fatalf("failed to get expense: %v", err)
+	}
+
+	if got.ID != updatedExpense.ID {
+		t.Fatalf(
+			"expected expense ID %d, got %d",
+			1,
+			got.ID,
+		)
+	}
+	if got.Title != updatedExpense.Title {
+		t.Fatalf(
+			"expected expense title %s, got %s",
+			updatedExpense.Title,
+			got.Title,
+		)
+	}
+	if got.Amount != updatedExpense.Amount {
+		t.Fatalf(
+			"expected expense amount %d, got %d",
+			updatedExpense.Amount,
+			got.Amount,
+		)
+	}
+	if got.Category != updatedExpense.Category {
+		t.Fatalf(
+			"expected expense category %s, got %s",
+			updatedExpense.Category,
+			got.Category,
+		)
+	}
+}
