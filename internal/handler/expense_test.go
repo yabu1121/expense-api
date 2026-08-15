@@ -14,7 +14,7 @@ import (
 
 type fakeExpenseStore struct {
 	expenses []model.Expense
-	err error
+	err      error
 }
 
 func (f *fakeExpenseStore) GetAllExpenses() ([]model.Expense, error) {
@@ -25,7 +25,7 @@ func (f *fakeExpenseStore) GetExpenseByID(id int) (*model.Expense, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	
+
 	for i := range f.expenses {
 		if f.expenses[i].ID == id {
 			return &f.expenses[i], nil
@@ -43,27 +43,60 @@ func (f *fakeExpenseStore) CreateExpense(expense model.Expense) (*model.Expense,
 }
 
 func (f *fakeExpenseStore) UpdateExpense(expense model.Expense) (*model.Expense, error) {
-	return &f.expenses[0], f.err
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	id := expense.ID
+
+	for i := range f.expenses {
+		if f.expenses[i].ID == id {
+			f.expenses[i] = expense
+			return &f.expenses[i], nil
+		}
+	}
+	return nil, sql.ErrNoRows
 }
 
 func (f *fakeExpenseStore) DeleteExpense(id int) error {
-	return f.err
+	if f.err != nil {
+		return f.err
+	}
+
+	var newExpenses []model.Expense
+	var flag bool
+
+	for i := range f.expenses {
+		if f.expenses[i].ID == id {
+			flag = true
+			continue
+		}
+		newExpenses = append(newExpenses, f.expenses[i])
+	}
+
+	f.expenses = newExpenses
+
+	if !flag {
+		return sql.ErrNoRows
+	}
+
+	return nil
 }
 
 func TestGetAllExpenses(t *testing.T) {
-	tests := []struct{
-			name string
-			store *fakeExpenseStore
-			expectedStatus int
-		}{
+	tests := []struct {
+		name           string
+		store          *fakeExpenseStore
+		expectedStatus int
+	}{
 		{
 			name: "success",
 			store: &fakeExpenseStore{
 				expenses: []model.Expense{
 					{
-						ID: 1,
-						Title: "coffee",
-						Amount: 500,
+						ID:       1,
+						Title:    "coffee",
+						Amount:   500,
 						Category: "food",
 					},
 				},
@@ -100,62 +133,62 @@ func TestGetAllExpenses(t *testing.T) {
 }
 
 func TestGetExpenseByID(t *testing.T) {
-	tests := []struct{
-		id string
-		name string
-		store *fakeExpenseStore
+	tests := []struct {
+		id             string
+		name           string
+		store          *fakeExpenseStore
 		expectedStatus int
-		}{
-			{
-				id: "1",
-				name: "success",
-				store: &fakeExpenseStore{
-					expenses: []model.Expense{
-						{
-							ID: 1,
-							Title: "coffee",
-							Amount: 500,
-							Category: "food",
-						},
+	}{
+		{
+			id:   "1",
+			name: "success",
+			store: &fakeExpenseStore{
+				expenses: []model.Expense{
+					{
+						ID:       1,
+						Title:    "coffee",
+						Amount:   500,
+						Category: "food",
 					},
 				},
-				expectedStatus: http.StatusOK,
 			},
-			{
-				id: "999",
-				name: "not found",
-				store: &fakeExpenseStore{},
-				expectedStatus: http.StatusNotFound,
-			},
-			{
-				id:"abd",
-				name: "invalid id",
-				store: &fakeExpenseStore{},
-				expectedStatus: http.StatusBadRequest,
-			},
-			{
-				id:"1",
-				name: "store error",
-				store: &fakeExpenseStore{
-					expenses: []model.Expense{
-						{
-							ID: 1,
-							Title: "coffee",
-							Amount: 500,
-							Category: "food",
-						},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			id:             "999",
+			name:           "not found",
+			store:          &fakeExpenseStore{},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			id:             "abd",
+			name:           "invalid id",
+			store:          &fakeExpenseStore{},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			id:   "1",
+			name: "store error",
+			store: &fakeExpenseStore{
+				expenses: []model.Expense{
+					{
+						ID:       1,
+						Title:    "coffee",
+						Amount:   500,
+						Category: "food",
 					},
-					err: errors.New("store error"),
 				},
-				expectedStatus: http.StatusInternalServerError,
+				err: errors.New("store error"),
 			},
-		}
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := NewExpenseHandler(tt.store)
 
-			req := httptest.NewRequest(http.MethodGet, "/expenses/" + tt.id , nil)
+			req := httptest.NewRequest(http.MethodGet, "/expenses/"+tt.id, nil)
 			req.SetPathValue("id", tt.id)
 			recorder := httptest.NewRecorder()
 
@@ -210,8 +243,8 @@ func TestGetExpenseByID(t *testing.T) {
 
 func TestCreateExpense(t *testing.T) {
 	expense := model.Expense{
-		Title: "coffee",
-		Amount: 500,
+		Title:    "coffee",
+		Amount:   500,
 		Category: "food",
 	}
 
@@ -222,22 +255,22 @@ func TestCreateExpense(t *testing.T) {
 
 	invalidBody := []byte(`{"title": "coffee"`)
 
-	tests := []struct{
-		name string
-		store *fakeExpenseStore
-		body []byte
+	tests := []struct {
+		name           string
+		store          *fakeExpenseStore
+		body           []byte
 		expectedStatus int
 	}{
 		{
-			name: "success",
-			store: &fakeExpenseStore{},
-			body: validBody,
+			name:           "success",
+			store:          &fakeExpenseStore{},
+			body:           validBody,
 			expectedStatus: http.StatusCreated,
 		},
 		{
-			name: "invalid json",
-			store: &fakeExpenseStore{},
-			body: invalidBody,
+			name:           "invalid json",
+			store:          &fakeExpenseStore{},
+			body:           invalidBody,
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
@@ -245,12 +278,12 @@ func TestCreateExpense(t *testing.T) {
 			store: &fakeExpenseStore{
 				err: errors.New("store error"),
 			},
-			body: validBody,
+			body:           validBody,
 			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func (t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			handler := NewExpenseHandler(tt.store)
 
 			reader := bytes.NewReader(tt.body)
@@ -301,6 +334,79 @@ func TestCreateExpense(t *testing.T) {
 						createdExpense.Category,
 					)
 				}
+			}
+		})
+	}
+}
+
+func TestDeleteExpenseByID(t *testing.T) {
+	tests := []struct {
+		id             string
+		name           string
+		store          *fakeExpenseStore
+		expectedStatus int
+	}{
+		{
+			id:   "1",
+			name: "success",
+			store: &fakeExpenseStore{
+				expenses: []model.Expense{
+					{
+						ID:       1,
+						Title:    "coffee",
+						Amount:   500,
+						Category: "food",
+					},
+				},
+			},
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			id:             "999",
+			name:           "not found",
+			store:          &fakeExpenseStore{},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			id:             "fja",
+			name:           "invalid id",
+			store:          &fakeExpenseStore{},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			id:   "1",
+			name: "store error",
+			store: &fakeExpenseStore{
+				expenses: []model.Expense{
+					{
+						ID:       1,
+						Title:    "coffee",
+						Amount:   500,
+						Category: "food",
+					},
+				},
+				err: errors.New("store error"),
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewExpenseHandler(tt.store)
+
+			req := httptest.NewRequest(http.MethodDelete, "/expenses/"+tt.id, nil)
+			req.SetPathValue("id", tt.id)
+			recorder := httptest.NewRecorder()
+
+			handler.ServeHTTP(recorder, req)
+
+			if recorder.Code != tt.expectedStatus {
+				t.Fatalf(
+					"expected status to %d, got %d",
+					tt.expectedStatus,
+					recorder.Code,
+				)
 			}
 		})
 	}

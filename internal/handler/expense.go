@@ -23,7 +23,7 @@ type ExpenseHandler struct {
 	store ExpenseStore
 }
 
-func NewExpenseHandler (store ExpenseStore) *ExpenseHandler {
+func NewExpenseHandler(store ExpenseStore) *ExpenseHandler {
 	return &ExpenseHandler{
 		store: store,
 	}

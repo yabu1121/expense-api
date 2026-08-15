@@ -20,7 +20,6 @@ func main() {
 
 	mux := http.NewServeMux()
 
-
 	mux.HandleFunc("/health", handler.HealthHandler)
 	mux.HandleFunc("/version", handler.VersionHandler)
 

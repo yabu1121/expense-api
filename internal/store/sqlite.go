@@ -90,6 +90,7 @@ func (s *SQLiteStore) GetExpenseByID(id int) (*model.Expense, error) {
 		from expenses
 		where id = ?
 	`, id)
+
 	var expense model.Expense
 	err := row.Scan(
 		&expense.ID,
