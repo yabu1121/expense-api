@@ -218,10 +218,10 @@ func TestGetAllExpenses(t *testing.T) {
 		}
 
 		for i, expected := range expenses {
-			if gotExpenses[i].ID != expected.ID {
+			if gotExpenses[i].ID != i+1 {
 				t.Fatalf(
 					"expected expense ID %d, got %d",
-					expected.ID,
+					i+1,
 					gotExpenses[i].ID,
 				)
 			}
