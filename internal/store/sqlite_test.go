@@ -198,4 +198,18 @@ func TestGetAllExpenses(t *testing.T) {
 
 		}
 	})
+
+	t.Run("empty", func(t *testing.T) {
+		emptyStore := newTestStore(t)
+
+		got, err := emptyStore.GetAllExpenses()
+
+		if err != nil {
+			t.Fatalf("failed to get all expenses: %v", err)
+		}
+
+		if len(got) != 0 {
+			t.Fatalf("expected to 0, got %d", len(got))
+		}
+	})
 }
