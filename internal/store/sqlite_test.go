@@ -163,7 +163,7 @@ func TestGetAllExpenses(t *testing.T) {
 		}
 
 		if len(gotExpenses) != 2 {
-			t.Fatalf("expected 2 expenses length, got %d", len(gotExpenses))
+			t.Fatalf("expected 2 expenses, got %d", len(gotExpenses))
 		}
 
 		for i, expected := range expenses {
@@ -209,7 +209,7 @@ func TestGetAllExpenses(t *testing.T) {
 		}
 
 		if len(got) != 0 {
-			t.Fatalf("expected to 0, got %d", len(got))
+			t.Fatalf("expected 0 expenses, got %d", len(got))
 		}
 	})
 }
@@ -279,6 +279,37 @@ func TestUpdateExpense(t *testing.T) {
 		_, err := expenseStore.UpdateExpense(model.Expense{ID: 999})
 		if !errors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("expected sql.ErrNoRows: %v", err)
+		}
+	})
+}
+
+func TestDeleteExpense(t *testing.T) {
+	expenseStore := newTestStore(t)
+	_, err := expenseStore.CreateExpense(model.Expense{
+		Title: "coffee",
+		Amount: 500,
+		Category: "food",
+	})
+	if err != nil {
+		t.Fatalf("failed to create expense: %v", err)
+	}
+	t.Run("success", func(t *testing.T) {
+		if err := expenseStore.DeleteExpense(1); err != nil {
+			t.Fatalf("failed to delete expense: %v", err)
+		}
+
+		got, err := expenseStore.GetExpenseByID(1)
+		if !errors.Is(err, sql.ErrNoRows) {
+			t.Fatalf("expected sql.ErrNoRows, got: %v", err)
+		}
+		if got != nil {
+			t.Fatalf("expected nil expense, got: %+v", got)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		if err := expenseStore.DeleteExpense(999); !errors.Is(err, sql.ErrNoRows) {
+			t.Fatalf("expected sql.ErrNoRows, got: %v", err)
 		}
 	})
 }
