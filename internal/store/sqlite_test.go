@@ -10,25 +10,6 @@ import (
 	"github.com/yabu1121/expense-api/internal/model"
 )
 
-func TestWriteFile(t *testing.T) {
-	tempDir := t.TempDir()
-
-	filePath := filepath.Join(tempDir, "test.txt")
-	content := []byte(`hello world`)
-
-	if err := os.WriteFile(filePath, content, 0644); err != nil {
-		t.Fatalf("failed to write file: %v", err)
-	}
-
-	got, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Fatalf("failed to read file: %v", err)
-	}
-	if string(got) != string(content) {
-		t.Errorf("got %v, expected %v", string(got), string(content))
-	}
-}
-
 func TestCreateExpense(t *testing.T) {
 	tempDir := t.TempDir()
 
