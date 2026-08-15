@@ -411,3 +411,166 @@ func TestDeleteExpenseByID(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateExpenseByID(t *testing.T) {
+	expense := model.Expense{
+		Title:    "coffee",
+		Amount:   500,
+		Category: "food",
+	}
+
+	validBody, err := json.Marshal(expense)
+	if err != nil {
+		t.Fatalf("failed to marshal expense %v", err)
+	}
+
+	invalidBody := []byte(`{"title": "coffee"`)
+
+	tests := []struct {
+		id             string
+		name           string
+		body           []byte
+		store          fakeExpenseStore
+		expectedStatus int
+	}{
+		{
+			id:   "1",
+			name: "success",
+			body: validBody,
+			store: fakeExpenseStore{
+				expenses: []model.Expense{
+					{
+						ID:       1,
+						Title:    "latte",
+						Amount:   550,
+						Category: "food",
+					},
+				},
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			id: "999",
+			name: "not found",
+			body: validBody,
+			store: fakeExpenseStore{
+				expenses: []model.Expense{
+					{
+						ID:       1,
+						Title:    "latte",
+						Amount:   550,
+						Category: "food",
+					},
+				},
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			id: "adj",
+			name: "invalid id",
+			body: validBody,
+			store: fakeExpenseStore{
+				expenses: []model.Expense{
+					{
+						ID:       1,
+						Title:    "latte",
+						Amount:   550,
+						Category: "food",
+					},
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			id: "1",
+			name: "store error",
+			body: validBody,
+			store: fakeExpenseStore{
+				expenses: []model.Expense{
+					{
+						ID:       1,
+						Title:    "latte",
+						Amount:   550,
+						Category: "food",
+					},
+				},
+				err: errors.New("store error"),
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			id: "1",
+			name: "invalid json request",
+			body: invalidBody,
+			store: fakeExpenseStore{
+				expenses: []model.Expense{
+					{
+						ID:       1,
+						Title:    "latte",
+						Amount:   550,
+						Category: "food",
+					},
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewExpenseHandler(&tt.store)
+
+			reader := bytes.NewReader(tt.body)
+
+			req := httptest.NewRequest(http.MethodPut, "/expenses/"+tt.id, reader)
+			req.SetPathValue("id", tt.id)
+			recorder := httptest.NewRecorder()
+
+			handler.ServeHTTP(recorder, req)
+
+			if recorder.Code != tt.expectedStatus {
+				t.Fatalf(
+					"expected status %d, got %d",
+					tt.expectedStatus,
+					recorder.Code,
+				)
+			}
+
+			if tt.expectedStatus == http.StatusOK {
+				var updatedExpense model.Expense
+				if err := json.NewDecoder(recorder.Body).Decode(&updatedExpense); err != nil {
+					t.Fatalf("failed to decode updated expense: %v", err)
+				}
+
+				if updatedExpense.ID != 1 {
+					t.Fatalf(
+						"expected expense ID %d, got %d",
+						1,
+						updatedExpense.ID,
+					)
+				}
+				if updatedExpense.Title != "coffee" {
+					t.Fatalf(
+						"expected expense title %s, got %s",
+						"coffee",
+						updatedExpense.Title,
+					)
+				}
+				if updatedExpense.Amount != 500{
+					t.Fatalf(
+						"expected expense amount %d, got %d",
+						500,
+						updatedExpense.Amount,
+					)
+				}
+				if updatedExpense.Category != "food" {
+					t.Fatalf(
+						"expected expense category %s, got %s",
+						"food",
+						updatedExpense.Category,
+					)
+				}
+			}
+		})
+	}
+}
