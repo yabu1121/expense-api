@@ -3,26 +3,13 @@ package store
 import (
 	"database/sql"
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/yabu1121/expense-api/internal/model"
 )
 
 func TestCreateExpense(t *testing.T) {
-	tempDir := t.TempDir()
-
-	filePath := filepath.Join(tempDir, "expenses.db")
-
-	expenseStore, err := NewSQLiteStore(filePath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-
-	t.Cleanup(func() {
-		expenseStore.Close()
-	})
+	expenseStore := newTestStore(t)
 
 	expense := model.Expense{
 		Title:    "coffee",
@@ -82,18 +69,7 @@ func TestCreateExpense(t *testing.T) {
 }
 
 func TestGetExpenseByID(t *testing.T) {
-	tempDir := t.TempDir()
-
-	filePath := filepath.Join(tempDir, "expenses.db")
-
-	expenseStore, err := NewSQLiteStore(filePath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-
-	t.Cleanup(func() {
-		expenseStore.Close()
-	})
+	expenseStore := newTestStore(t)
 
 	t.Run("success", func(t *testing.T) {
 		expense := model.Expense{
@@ -158,15 +134,7 @@ func TestGetExpenseByID(t *testing.T) {
 }
 
 func TestGetAllExpenses(t *testing.T) {
-	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "expenses.db")
-	expenseStore, err := NewSQLiteStore(filePath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-	t.Cleanup(func() {
-		expenseStore.Close()
-	})
+	expenseStore := newTestStore(t)
 
 	expenses := []model.Expense{
 		{
