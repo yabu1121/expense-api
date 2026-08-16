@@ -529,6 +529,18 @@ func TestUpdateExpenseByID(t *testing.T) {
 
 	invalidBody := []byte(`{"title": "coffee"`)
 
+	emptyTitleExpense := model.Expense{
+		ID:       1,
+		Title:    "",
+		Amount:   500,
+		Category: "food",
+	}
+
+	emptyTitleExpenseBody, err := json.Marshal(emptyTitleExpense)
+	if err != nil {
+		t.Fatalf("failed to marshal empty title expense: %v", err)
+	}
+
 	tests := []struct {
 		id             string
 		name           string
@@ -605,6 +617,22 @@ func TestUpdateExpenseByID(t *testing.T) {
 			id:   "1",
 			name: "invalid json request",
 			body: invalidBody,
+			store: fakeExpenseStore{
+				expenses: []model.Expense{
+					{
+						ID:       1,
+						Title:    "latte",
+						Amount:   550,
+						Category: "food",
+					},
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			id:   "1",
+			name: "empty title",
+			body: emptyTitleExpenseBody,
 			store: fakeExpenseStore{
 				expenses: []model.Expense{
 					{

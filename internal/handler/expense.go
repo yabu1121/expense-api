@@ -182,6 +182,16 @@ func (h *ExpenseHandler) updateExpenseByID(w http.ResponseWriter, r *http.Reques
 	}
 	expense.ID = id
 
+	expense.Normalize()
+	if err := expense.Validate(); err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusBadRequest,
+		)
+		return
+	}
+
 	updatedExpense, err := h.store.UpdateExpense(expense)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
