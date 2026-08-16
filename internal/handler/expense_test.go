@@ -255,6 +255,72 @@ func TestCreateExpense(t *testing.T) {
 
 	invalidBody := []byte(`{"title": "coffee"`)
 
+	emptyTitleExpense := model.Expense{
+		Title:    "",
+		Amount:   500,
+		Category: "food",
+	}
+
+	emptyTitleBody, err := json.Marshal(emptyTitleExpense)
+	if err != nil {
+		t.Fatalf("failed to marshal empty title expense: %v", err)
+	}
+
+	spaceOnlyTitleExpense := model.Expense{
+		Title:    "　",
+		Amount:   500,
+		Category: "food",
+	}
+
+	spaceOnlyTitleBody, err := json.Marshal(spaceOnlyTitleExpense)
+	if err != nil {
+		t.Fatalf("failed to marshal space only title expense: %v", err)
+	}
+
+	zeroAmountExpense := model.Expense{
+		Title:    "coffee",
+		Amount:   0,
+		Category: "food",
+	}
+
+	zeroAmountBody, err := json.Marshal(zeroAmountExpense)
+	if err != nil {
+		t.Fatalf("failed to marshal zero amount expense: %v", err)
+	}
+
+	negativeAmountExpense := model.Expense{
+		Title:    "coffee",
+		Amount:   -1,
+		Category: "food",
+	}
+
+	negativeAmountBody, err := json.Marshal(negativeAmountExpense)
+	if err != nil {
+		t.Fatalf("failed to marshal negative amount expense: %v", err)
+	}
+
+	emptyCategoryExpense := model.Expense{
+		Title:    "coffee",
+		Amount:   500,
+		Category: "",
+	}
+
+	emptyCategoryBody, err := json.Marshal(emptyCategoryExpense)
+	if err != nil {
+		t.Fatalf("failed to marshal empty category expense: %v", err)
+	}
+
+	spaceOnlyCategoryExpense := model.Expense{
+		Title:    "coffee",
+		Amount:   500,
+		Category: " ",
+	}
+
+	spaceOnlyCategoryBody, err := json.Marshal(spaceOnlyCategoryExpense)
+	if err != nil {
+		t.Fatalf("failed to marshal space only category expense: %v", err)
+	}
+
 	tests := []struct {
 		name           string
 		store          *fakeExpenseStore
@@ -281,7 +347,44 @@ func TestCreateExpense(t *testing.T) {
 			body:           validBody,
 			expectedStatus: http.StatusInternalServerError,
 		},
+		{
+			name:           "empty title",
+			store:          &fakeExpenseStore{},
+			body:           emptyTitleBody,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "space only title",
+			store:          &fakeExpenseStore{},
+			body:           spaceOnlyTitleBody,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "zero amount",
+			store:          &fakeExpenseStore{},
+			body:           zeroAmountBody,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "negative amount",
+			store:          &fakeExpenseStore{},
+			body:           negativeAmountBody,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "empty category",
+			store:          &fakeExpenseStore{},
+			body:           emptyCategoryBody,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "space only category",
+			store:          &fakeExpenseStore{},
+			body:           spaceOnlyCategoryBody,
+			expectedStatus: http.StatusBadRequest,
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := NewExpenseHandler(tt.store)
@@ -450,7 +553,7 @@ func TestUpdateExpenseByID(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			id: "999",
+			id:   "999",
 			name: "not found",
 			body: validBody,
 			store: fakeExpenseStore{
@@ -466,7 +569,7 @@ func TestUpdateExpenseByID(t *testing.T) {
 			expectedStatus: http.StatusNotFound,
 		},
 		{
-			id: "adj",
+			id:   "adj",
 			name: "invalid id",
 			body: validBody,
 			store: fakeExpenseStore{
@@ -482,7 +585,7 @@ func TestUpdateExpenseByID(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			id: "1",
+			id:   "1",
 			name: "store error",
 			body: validBody,
 			store: fakeExpenseStore{
@@ -499,7 +602,7 @@ func TestUpdateExpenseByID(t *testing.T) {
 			expectedStatus: http.StatusInternalServerError,
 		},
 		{
-			id: "1",
+			id:   "1",
 			name: "invalid json request",
 			body: invalidBody,
 			store: fakeExpenseStore{
@@ -556,7 +659,7 @@ func TestUpdateExpenseByID(t *testing.T) {
 						updatedExpense.Title,
 					)
 				}
-				if updatedExpense.Amount != 500{
+				if updatedExpense.Amount != 500 {
 					t.Fatalf(
 						"expected expense amount %d, got %d",
 						500,
