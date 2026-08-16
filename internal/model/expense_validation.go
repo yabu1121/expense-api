@@ -1,7 +1,6 @@
 package model
 
 import (
-	"errors"
 	"strings"
 )
 
@@ -30,21 +29,21 @@ func (e Expense) Validate() error {
 
 func (e Expense) validateTitle() error {
 	if e.Title == "" {
-		return errors.New("title must not be empty")
+		return ErrTitleRequired
 	}
 	return nil
 }
 
 func (e Expense) validateAmount() error {
 	if e.Amount <= 0 {
-		return errors.New("amount must be greater than zero")
+		return ErrAmountMustBePositive
 	}
 	return nil
 }
 
 func (e Expense) validateCategory() error {
 	if e.Category == "" {
-		return errors.New("category must not be empty")
+		return ErrCategoryRequired
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -87,32 +88,32 @@ func TestExpenseValidation(t *testing.T) {
 	tests := []struct {
 		name    string
 		expense Expense
-		wantErr bool
+		wantErr error
 	}{
 		{
 			name:    "success",
 			expense: validExpense,
-			wantErr: false,
+			wantErr: nil,
 		},
 		{
 			name:    "empty title",
 			expense: emptyTitleExpense,
-			wantErr: true,
+			wantErr: ErrTitleRequired,
 		},
 		{
 			name:    "zero amount",
 			expense: zeroAmountExpense,
-			wantErr: true,
+			wantErr: ErrAmountMustBePositive,
 		},
 		{
 			name:    "negative amount",
 			expense: negativeAmountExpense,
-			wantErr: true,
+			wantErr: ErrAmountMustBePositive,
 		},
 		{
 			name:    "empty category",
 			expense: emptyCategoryExpense,
-			wantErr: true,
+			wantErr: ErrCategoryRequired,
 		},
 	}
 
@@ -120,14 +121,8 @@ func TestExpenseValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.expense.Normalize()
 			err := tt.expense.Validate()
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-			} else {
-				if err != nil {
-					t.Fatalf("expected no error, got: %v", err)
-				}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("expected no error, got: %v", err)
 			}
 		})
 	}
