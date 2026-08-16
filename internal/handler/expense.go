@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/yabu1121/expense-api/internal/model"
 )
@@ -62,34 +61,11 @@ func (h *ExpenseHandler) createExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	trimmedTitle := strings.TrimSpace(expense.Title)
-	expense.Title = trimmedTitle
-
-	if expense.Title == "" {
+	expense.Normalize()
+	if err := expense.Validate(); err != nil {
 		http.Error(
 			w,
-			"title must not be empty",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	if expense.Amount <= 0 {
-		http.Error(
-			w,
-			"amount must be greater than zero",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	trimmedCategory := strings.TrimSpace(expense.Category)
-	expense.Category = trimmedCategory
-
-	if expense.Category == "" {
-		http.Error(
-			w,
-			"category must not be empty",
+			err.Error(),
 			http.StatusBadRequest,
 		)
 		return
