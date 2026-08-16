@@ -1,7 +1,6 @@
 package store
 
 import (
-	"database/sql"
 	"errors"
 	"testing"
 
@@ -123,8 +122,8 @@ func TestGetExpenseByID(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		got, err := expenseStore.GetExpenseByID(999)
-		if !errors.Is(err, sql.ErrNoRows) {
-			t.Fatalf("expected sql.ErrNoRows: %v", err)
+		if !errors.Is(err, model.ErrExpenseNotFound) {
+			t.Fatalf("expected model.ErrExpenseNotFuond: %v", err)
 		}
 
 		if got != nil {
@@ -277,8 +276,8 @@ func TestUpdateExpense(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		_, err := expenseStore.UpdateExpense(model.Expense{ID: 999})
-		if !errors.Is(err, sql.ErrNoRows) {
-			t.Fatalf("expected sql.ErrNoRows: %v", err)
+		if !errors.Is(err, model.ErrExpenseNotFound) {
+			t.Fatalf("expected model.ErrExpenseNotFound: %v", err)
 		}
 	})
 }
@@ -299,8 +298,8 @@ func TestDeleteExpense(t *testing.T) {
 		}
 
 		got, err := expenseStore.GetExpenseByID(1)
-		if !errors.Is(err, sql.ErrNoRows) {
-			t.Fatalf("expected sql.ErrNoRows, got: %v", err)
+		if !errors.Is(err, model.ErrExpenseNotFound) {
+			t.Fatalf("expected model.ErrExpenseNotFound, got: %v", err)
 		}
 		if got != nil {
 			t.Fatalf("expected nil expense, got: %+v", got)
@@ -308,8 +307,8 @@ func TestDeleteExpense(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		if err := expenseStore.DeleteExpense(999); !errors.Is(err, sql.ErrNoRows) {
-			t.Fatalf("expected sql.ErrNoRows, got: %v", err)
+		if err := expenseStore.DeleteExpense(999); !errors.Is(err, model.ErrExpenseNotFound) {
+			t.Fatalf("expected model.ErrExpenseNotFound, got: %v", err)
 		}
 	})
 }

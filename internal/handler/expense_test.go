@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -31,7 +30,7 @@ func (f *fakeExpenseStore) GetExpenseByID(id int) (*model.Expense, error) {
 			return &f.expenses[i], nil
 		}
 	}
-	return nil, sql.ErrNoRows
+	return nil, model.ErrExpenseNotFound
 }
 
 func (f *fakeExpenseStore) CreateExpense(expense model.Expense) (*model.Expense, error) {
@@ -55,7 +54,7 @@ func (f *fakeExpenseStore) UpdateExpense(expense model.Expense) (*model.Expense,
 			return &f.expenses[i], nil
 		}
 	}
-	return nil, sql.ErrNoRows
+	return nil, model.ErrExpenseNotFound
 }
 
 func (f *fakeExpenseStore) DeleteExpense(id int) error {
@@ -77,7 +76,7 @@ func (f *fakeExpenseStore) DeleteExpense(id int) error {
 	f.expenses = newExpenses
 
 	if !flag {
-		return sql.ErrNoRows
+		return model.ErrExpenseNotFound
 	}
 
 	return nil

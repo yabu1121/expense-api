@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"log"
@@ -103,7 +102,7 @@ func (h *ExpenseHandler) getExpenseByID(w http.ResponseWriter, r *http.Request) 
 
 	expense, err := h.store.GetExpenseByID(id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, model.ErrExpenseNotFound) {
 			http.Error(
 				w,
 				"expense not found",
@@ -140,7 +139,7 @@ func (h *ExpenseHandler) deleteExpenseByID(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := h.store.DeleteExpense(id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, model.ErrExpenseNotFound) {
 			http.Error(
 				w,
 				"expense not found",
@@ -194,7 +193,7 @@ func (h *ExpenseHandler) updateExpenseByID(w http.ResponseWriter, r *http.Reques
 
 	updatedExpense, err := h.store.UpdateExpense(expense)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, model.ErrExpenseNotFound) {
 			http.Error(
 				w,
 				"expense not found",

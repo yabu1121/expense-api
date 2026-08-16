@@ -181,7 +181,6 @@ func TestGetExpenseByIDIntegration(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		expense := model.Expense{
-			ID:       1,
 			Title:    "coffee",
 			Amount:   500,
 			Category: "food",
