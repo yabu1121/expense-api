@@ -3,6 +3,7 @@ package handler_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -264,39 +265,19 @@ func TestDeleteExpenseByIDIntegration(t *testing.T) {
 	mux.Handle("/expenses/{id}", expenseHandler)
 
 	t.Run("success", func(t *testing.T) {
-		// create
+		// arrange
 		expense := model.Expense{
 			Title: "coffee",
 			Amount: 500,
 			Category: "food",
 		}
 
-		pendingCreateExpenseBody, err := json.Marshal(expense)
+		createdExpense, err := expenseStore.CreateExpense(expense)
 		if err != nil {
-			t.Fatalf("failed to marshal expense: %v", err)
+			t.Fatalf("failed to create expense to the store: %v", err)
 		}
 
-		pendingCreateExpenseReader := bytes.NewReader(pendingCreateExpenseBody)
-
-		createReq := httptest.NewRequest(http.MethodPost, "/expenses", pendingCreateExpenseReader)
-		createRecorder := httptest.NewRecorder()
-		mux.ServeHTTP(createRecorder, createReq)
-
-		if createRecorder.Code != http.StatusCreated{
-			t.Fatalf(
-				"expected to %d, got %d",
-				http.StatusCreated,
-				createRecorder.Code,
-			)
-		}
-		
-		var createdExpense model.Expense
-		if err := json.NewDecoder(createRecorder.Body).Decode(&createdExpense); err != nil {
-			t.Fatalf("failed to decode created body: %v", err)
-		}
-
-
-		// delete
+		// act delete
 		deleteReq := httptest.NewRequest(http.MethodDelete, "/expenses/" + strconv.Itoa(createdExpense.ID), nil)
 		deleteRecorder := httptest.NewRecorder()
 		mux.ServeHTTP(deleteRecorder, deleteReq)
@@ -309,17 +290,14 @@ func TestDeleteExpenseByIDIntegration(t *testing.T) {
 			)
 		}
 
-		// get by id
-		getReq := httptest.NewRequest(http.MethodGet, "/expenses" + strconv.Itoa(createdExpense.ID), nil)
-		getRecorder := httptest.NewRecorder()
-		mux.ServeHTTP(getRecorder, getReq)
+		// assert
+		got, err := expenseStore.GetExpenseByID(createdExpense.ID)
+		if !errors.Is(err, model.ErrExpenseNotFound) {
+			t.Fatalf("expected ErrExpenseNotFound, got %v", err)
+		}
 
-		if getRecorder.Code != http.StatusNotFound {
-			t.Fatalf(
-				"expected to %d, got %d",
-				http.StatusNotFound,
-				getRecorder.Code,
-			)
+		if got != nil {
+			t.Fatal("expected expense to be nil")
 		}
 	})
 }
