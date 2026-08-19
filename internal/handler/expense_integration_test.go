@@ -267,8 +267,8 @@ func TestDeleteExpenseByIDIntegration(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		// arrange
 		expense := model.Expense{
-			Title: "coffee",
-			Amount: 500,
+			Title:    "coffee",
+			Amount:   500,
 			Category: "food",
 		}
 
@@ -278,7 +278,7 @@ func TestDeleteExpenseByIDIntegration(t *testing.T) {
 		}
 
 		// act delete
-		deleteReq := httptest.NewRequest(http.MethodDelete, "/expenses/" + strconv.Itoa(createdExpense.ID), nil)
+		deleteReq := httptest.NewRequest(http.MethodDelete, "/expenses/"+strconv.Itoa(createdExpense.ID), nil)
 		deleteRecorder := httptest.NewRecorder()
 		mux.ServeHTTP(deleteRecorder, deleteReq)
 
@@ -298,6 +298,101 @@ func TestDeleteExpenseByIDIntegration(t *testing.T) {
 
 		if got != nil {
 			t.Fatal("expected expense to be nil")
+		}
+	})
+}
+
+func TestUpdateExpenseIntegration(t *testing.T) {
+	tempDir := t.TempDir()
+
+	filePath := filepath.Join(tempDir, "expenses.db")
+
+	expenseStore, err := store.NewSQLiteStore(filePath)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+
+	t.Cleanup(func() {
+		expenseStore.Close()
+	})
+
+	expenseHandler := handler.NewExpenseHandler(expenseStore)
+
+	mux := http.NewServeMux()
+
+	mux.Handle("/expenses", expenseHandler)
+	mux.Handle("/expenses/{id}", expenseHandler)
+
+	t.Run("success", func(t *testing.T) {
+		// arrange
+		expense := model.Expense{
+			Title:    "coffee",
+			Amount:   500,
+			Category: "food",
+		}
+
+		// create to the store
+		createdExpense, err := expenseStore.CreateExpense(expense)
+		if err != nil {
+			t.Fatalf("failed to create expense in the store: %v", err)
+		}
+
+		// update in http
+		pendingUpdateExpense := model.Expense{
+			Title: "latte",
+			Amount: 550,
+			Category: "food",
+		}
+
+		pendingUpdateExpenseBody, err := json.Marshal(pendingUpdateExpense)
+		if err != nil {
+			t.Fatalf("failed to marshal update expense: %v", err)
+		}
+
+		pendingUpdateExpenseReader := bytes.NewReader(pendingUpdateExpenseBody)
+		updateReq := httptest.NewRequest(http.MethodPut, "/expenses/" + strconv.Itoa(createdExpense.ID), pendingUpdateExpenseReader)
+		updateRecorder := httptest.NewRecorder()
+		mux.ServeHTTP(updateRecorder, updateReq)
+
+		if updateRecorder.Code != http.StatusOK {
+			t.Fatalf(
+				"expected to %d, got %d",
+				http.StatusOK,
+				updateRecorder.Code,
+			)
+		}
+
+		var updatedExpense model.Expense
+		if err := json.NewDecoder(updateRecorder.Body).Decode(&updatedExpense); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+
+		// assert
+		got, err := expenseStore.GetExpenseByID(createdExpense.ID)
+		if err != nil {
+			t.Fatalf("failed to get expense by id from store: %v", err)
+		}
+
+		if got.Title != pendingUpdateExpense.Title {
+			t.Fatalf(
+				"expected expense title %s, got %s",
+				pendingUpdateExpense.Title,
+				got.Title,
+			)
+		}
+		if got.Amount != pendingUpdateExpense.Amount {
+			t.Fatalf(
+				"expected expense amount %d, got %d",
+				pendingUpdateExpense.Amount,
+				got.Amount,
+			)
+		}
+		if got.Category != pendingUpdateExpense.Category {
+			t.Fatalf(
+				"expected expense category %s, got %s",
+				pendingUpdateExpense.Category,
+				got.Category,
+			)
 		}
 	})
 }
