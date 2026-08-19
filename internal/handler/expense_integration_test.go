@@ -242,3 +242,84 @@ func TestGetExpenseByIDIntegration(t *testing.T) {
 		}
 	})
 }
+
+func TestDeleteExpenseByIDIntegration(t *testing.T) {
+	tempDir := t.TempDir()
+
+	filePath := filepath.Join(tempDir, "expenses.db")
+
+	expenseStore, err := store.NewSQLiteStore(filePath)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+
+	t.Cleanup(func() {
+		expenseStore.Close()
+	})
+
+	expenseHandler := handler.NewExpenseHandler(expenseStore)
+
+	mux := http.NewServeMux()
+	mux.Handle("/expenses", expenseHandler)
+	mux.Handle("/expenses/{id}", expenseHandler)
+
+	t.Run("success", func(t *testing.T) {
+		// create
+		expense := model.Expense{
+			Title: "coffee",
+			Amount: 500,
+			Category: "food",
+		}
+
+		pendingCreateExpenseBody, err := json.Marshal(expense)
+		if err != nil {
+			t.Fatalf("failed to marshal expense: %v", err)
+		}
+
+		pendingCreateExpenseReader := bytes.NewReader(pendingCreateExpenseBody)
+
+		createReq := httptest.NewRequest(http.MethodPost, "/expenses", pendingCreateExpenseReader)
+		createRecorder := httptest.NewRecorder()
+		mux.ServeHTTP(createRecorder, createReq)
+
+		if createRecorder.Code != http.StatusCreated{
+			t.Fatalf(
+				"expected to %d, got %d",
+				http.StatusCreated,
+				createRecorder.Code,
+			)
+		}
+		
+		var createdExpense model.Expense
+		if err := json.NewDecoder(createRecorder.Body).Decode(&createdExpense); err != nil {
+			t.Fatalf("failed to decode created body: %v", err)
+		}
+
+
+		// delete
+		deleteReq := httptest.NewRequest(http.MethodDelete, "/expenses/" + strconv.Itoa(createdExpense.ID), nil)
+		deleteRecorder := httptest.NewRecorder()
+		mux.ServeHTTP(deleteRecorder, deleteReq)
+
+		if deleteRecorder.Code != http.StatusNoContent {
+			t.Fatalf(
+				"expected to %d, got %d",
+				http.StatusNoContent,
+				deleteRecorder.Code,
+			)
+		}
+
+		// get by id
+		getReq := httptest.NewRequest(http.MethodGet, "/expenses" + strconv.Itoa(createdExpense.ID), nil)
+		getRecorder := httptest.NewRecorder()
+		mux.ServeHTTP(getRecorder, getReq)
+
+		if getRecorder.Code != http.StatusNotFound {
+			t.Fatalf(
+				"expected to %d, got %d",
+				http.StatusNotFound,
+				getRecorder.Code,
+			)
+		}
+	})
+}
