@@ -4,16 +4,24 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/yabu1121/expense-api/internal/handler"
 	"github.com/yabu1121/expense-api/internal/store"
 )
 
 func main() {
-	expenseStore, err := store.NewSQLiteStore("expenses.db")
+	dbPath := os.Getenv("DB_PATH")
+
+	if dbPath == "" {
+		dbPath = "expenses.db"
+	}
+
+	expenseStore, err := store.NewSQLiteStore(dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	defer expenseStore.Close()
 
 	expenseHandler := handler.NewExpenseHandler(expenseStore)

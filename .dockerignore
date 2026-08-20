@@ -1,0 +1,4 @@
+.git
+.gitignore
+expenses.db
+expense-api
