@@ -1,0 +1,15 @@
+services:
+  api:
+    build:
+      context: .
+    image: expense-api:multi
+    ports:
+      - "8080:8080"
+    environment:
+      DB_PATH: /data/expenses.db
+    volumes:
+      - expense-data:/data
+
+volumes:
+  expense-data:
+    name: expense-data

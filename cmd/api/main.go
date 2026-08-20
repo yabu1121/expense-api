@@ -36,7 +36,13 @@ func main() {
 
 	fmt.Println("server is running on port 8080")
 
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	server := &http.Server{
+		Addr: ":8080",
+		Handler: mux,
+	}
+
+	server.ListenAndServe()
+	if err := server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }
