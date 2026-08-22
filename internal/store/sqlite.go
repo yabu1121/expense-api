@@ -52,12 +52,46 @@ func (s *SQLiteStore) createTable() error {
 	return nil
 }
 
-func (s *SQLiteStore) ListExpensess() ([]model.Expense, error) {
+func (s *SQLiteStore) ListExpenses() ([]model.Expense, error) {
 	rows, err := s.db.Query(`
 		select id, title, amount, category
 		from expenses
 		order by id asc
 	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	expenses := make([]model.Expense, 0)
+
+	for rows.Next() {
+		var expense model.Expense
+		err := rows.Scan(
+			&expense.ID,
+			&expense.Title,
+			&expense.Amount,
+			&expense.Category,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		expenses = append(expenses, expense)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return expenses, nil
+}
+
+func (s *SQLiteStore) ListExpensesByCategory(category string) ([]model.Expense, error) {
+	rows, err := s.db.Query(`
+		select id, title, amount, category
+		from expenses
+		where category = ?
+		order by id asc
+	`, category)
 	if err != nil {
 		return nil, err
 	}

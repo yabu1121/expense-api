@@ -11,7 +11,8 @@ import (
 )
 
 type ExpenseStore interface {
-	ListExpensess() ([]model.Expense, error)
+	ListExpenses() ([]model.Expense, error)
+	ListExpensesByCategory(category string) ([]model.Expense, error)
 	GetExpenseByID(id int) (*model.Expense, error)
 	CreateExpense(expense model.Expense) (*model.Expense, error)
 	UpdateExpense(expense model.Expense) (*model.Expense, error)
@@ -29,7 +30,17 @@ func NewExpenseHandler(store ExpenseStore) *ExpenseHandler {
 }
 
 func (h *ExpenseHandler) ListExpenses(w http.ResponseWriter, r *http.Request) {
-	expenses, err := h.store.ListExpensess()
+	var expenses []model.Expense
+	var err error
+
+	category := r.URL.Query().Get("category")
+
+	if category != "" {
+		expenses, err = h.store.ListExpensesByCategory(category)
+	} else {
+		expenses, err = h.store.ListExpenses()
+	}
+
 	if err != nil {
 		log.Printf("failed to get expenses: %v", err)
 		http.Error(

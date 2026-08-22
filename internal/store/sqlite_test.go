@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/yabu1121/expense-api/internal/model"
@@ -132,7 +133,7 @@ func TestGetExpenseByID(t *testing.T) {
 	})
 }
 
-func TestListExpensess(t *testing.T) {
+func TestListExpenses(t *testing.T) {
 	expenseStore := newTestStore(t)
 
 	expenses := []model.Expense{
@@ -156,7 +157,7 @@ func TestListExpensess(t *testing.T) {
 			}
 		}
 
-		gotExpenses, err := expenseStore.ListExpensess()
+		gotExpenses, err := expenseStore.ListExpenses()
 		if err != nil {
 			t.Fatalf("failed to get all expenses: %v", err)
 		}
@@ -201,7 +202,7 @@ func TestListExpensess(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		emptyStore := newTestStore(t)
 
-		got, err := emptyStore.ListExpensess()
+		got, err := emptyStore.ListExpenses()
 
 		if err != nil {
 			t.Fatalf("failed to get all expenses: %v", err)
@@ -211,6 +212,107 @@ func TestListExpensess(t *testing.T) {
 			t.Fatalf("expected 0 expenses, got %d", len(got))
 		}
 	})
+}
+func TestListExpensesByCategory(t *testing.T) {
+	tests := []struct {
+		name     string
+		expenses []model.Expense
+		category string
+		want     []model.Expense
+	}{
+		{
+			name: "two_food",
+			expenses: []model.Expense{
+				{
+					Title:    "coffee",
+					Amount:   500,
+					Category: "food",
+				},
+				{
+					Title:    "latte",
+					Amount:   550,
+					Category: "food",
+				},
+			},
+			category: "food",
+			want: []model.Expense{
+				{
+					ID:       1,
+					Title:    "coffee",
+					Amount:   500,
+					Category: "food",
+				},
+				{
+					ID:       2,
+					Title:    "latte",
+					Amount:   550,
+					Category: "food",
+				},
+			},
+		},
+		{
+			name: "food_and_drink",
+			expenses: []model.Expense{
+				{
+					Title:    "coffee",
+					Amount:   500,
+					Category: "food",
+				},
+				{
+					Title:    "latte",
+					Amount:   550,
+					Category: "drink",
+				},
+			},
+			category: "food",
+			want: []model.Expense{
+				{
+					ID:       1,
+					Title:    "coffee",
+					Amount:   500,
+					Category: "food",
+				},
+			},
+		},
+		{
+			name: "category_not_found",
+			expenses: []model.Expense{
+				{
+					Title:    "coffee",
+					Amount:   500,
+					Category: "food",
+				},
+				{
+					Title:    "latte",
+					Amount:   550,
+					Category: "drink",
+				},
+			},
+			category: "travel",
+			want:     []model.Expense{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expenseStore := newTestStore(t)
+			for _, e := range tt.expenses {
+				_, err := expenseStore.CreateExpense(e)
+				if err != nil {
+					t.Fatalf("failed to create expense: %v", err)
+				}
+			}
+
+			gotExpenses, err := expenseStore.ListExpensesByCategory(tt.category)
+			if err != nil {
+				t.Fatalf("failed to list expenses by category: %v", err)
+			}
+
+			if !slices.Equal(gotExpenses, tt.want) {
+				t.Fatalf("expected %+v, got %+v", tt.want, gotExpenses)
+			}
+		})
+	}
 }
 func TestUpdateExpense(t *testing.T) {
 	expenseStore := newTestStore(t)
