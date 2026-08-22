@@ -132,7 +132,7 @@ func TestGetExpenseByID(t *testing.T) {
 	})
 }
 
-func TestGetAllExpenses(t *testing.T) {
+func TestListExpensess(t *testing.T) {
 	expenseStore := newTestStore(t)
 
 	expenses := []model.Expense{
@@ -156,7 +156,7 @@ func TestGetAllExpenses(t *testing.T) {
 			}
 		}
 
-		gotExpenses, err := expenseStore.GetAllExpenses()
+		gotExpenses, err := expenseStore.ListExpensess()
 		if err != nil {
 			t.Fatalf("failed to get all expenses: %v", err)
 		}
@@ -201,7 +201,7 @@ func TestGetAllExpenses(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		emptyStore := newTestStore(t)
 
-		got, err := emptyStore.GetAllExpenses()
+		got, err := emptyStore.ListExpensess()
 
 		if err != nil {
 			t.Fatalf("failed to get all expenses: %v", err)
@@ -320,14 +320,14 @@ func TestGetExpenseSummary(t *testing.T) {
 		expectedResult model.ExpenseSummary
 	}{
 		{
-			name:  "success1",
+			name: "success1",
 			expectedResult: model.ExpenseSummary{
 				Count:       0,
 				TotalAmount: 0,
 			},
 		},
 		{
-			name:  "success2",
+			name: "success2",
 			expenses: []model.Expense{
 				{
 					ID:       1,

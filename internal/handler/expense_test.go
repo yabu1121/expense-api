@@ -16,7 +16,7 @@ type fakeExpenseStore struct {
 	err      error
 }
 
-func (f *fakeExpenseStore) GetAllExpenses() ([]model.Expense, error) {
+func (f *fakeExpenseStore) ListExpensess() ([]model.Expense, error) {
 	return f.expenses, f.err
 }
 
@@ -100,7 +100,7 @@ func (f *fakeExpenseStore) GetExpenseSummary() (*model.ExpenseSummary, error) {
 	}, nil
 }
 
-func TestGetAllExpenses(t *testing.T) {
+func TestListExpensess(t *testing.T) {
 	tests := []struct {
 		name           string
 		store          *fakeExpenseStore
@@ -136,7 +136,7 @@ func TestGetAllExpenses(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/expenses", nil)
 			recorder := httptest.NewRecorder()
 
-			handler.ServeHTTP(recorder, req)
+			handler.ListExpenses(recorder, req)
 
 			if recorder.Code != tt.expectedStatus {
 				t.Fatalf(
@@ -209,7 +209,7 @@ func TestGetExpenseByID(t *testing.T) {
 			req.SetPathValue("id", tt.id)
 			recorder := httptest.NewRecorder()
 
-			handler.ServeHTTP(recorder, req)
+			handler.GetExpenseByID(recorder, req)
 
 			if recorder.Code != tt.expectedStatus {
 				t.Fatalf(
@@ -411,7 +411,7 @@ func TestCreateExpense(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/expenses", reader)
 			recorder := httptest.NewRecorder()
 
-			handler.ServeHTTP(recorder, req)
+			handler.CreateExpense(recorder, req)
 
 			if recorder.Code != tt.expectedStatus {
 				t.Fatalf(
@@ -519,7 +519,7 @@ func TestDeleteExpenseByID(t *testing.T) {
 			req.SetPathValue("id", tt.id)
 			recorder := httptest.NewRecorder()
 
-			handler.ServeHTTP(recorder, req)
+			handler.DeleteExpenseByID(recorder, req)
 
 			if recorder.Code != tt.expectedStatus {
 				t.Fatalf(
@@ -674,7 +674,7 @@ func TestUpdateExpenseByID(t *testing.T) {
 			req.SetPathValue("id", tt.id)
 			recorder := httptest.NewRecorder()
 
-			handler.ServeHTTP(recorder, req)
+			handler.UpdateExpenseByID(recorder, req)
 
 			if recorder.Code != tt.expectedStatus {
 				t.Fatalf(
@@ -793,7 +793,7 @@ func TestGetExpenseSummary(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/expenses/summary", nil)
 
-			handler.ServeHTTP(recorder, req)
+			handler.GetExpenseSummary(recorder, req)
 
 			if recorder.Code != tt.expectedStatus {
 				t.Fatalf(

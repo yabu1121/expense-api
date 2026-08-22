@@ -29,22 +29,26 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/health", handler.HealthHandler)
-	mux.HandleFunc("/version", handler.VersionHandler)
+	mux.HandleFunc("GET /health", handler.HealthHandler)
+	mux.HandleFunc("GET /version", handler.VersionHandler)
 
-	mux.Handle("/expenses", expenseHandler)
-	mux.Handle("/expenses/summary", expenseSummaryHandler)
-	mux.Handle("/expenses/{id}", expenseHandler)
+	mux.HandleFunc("GET /expenses", expenseHandler.ListExpenses)
+	mux.HandleFunc("GET /expenses/{id}", expenseHandler.GetExpenseByID)
+	mux.HandleFunc("POST /expenses", expenseHandler.CreateExpense)
+	mux.HandleFunc("PUT /expenses/{id}", expenseHandler.UpdateExpenseByID)
+	mux.HandleFunc("DELETE /expenses/{id}", expenseHandler.DeleteExpenseByID)
 
-	fmt.Println("server is running on port 8080")
+	mux.HandleFunc("GET /expenses/summary", expenseSummaryHandler.GetExpenseSummary)
 
 	server := &http.Server{
-		Addr: ":8080",
+		Addr:    ":8080",
 		Handler: mux,
 	}
-
-	server.ListenAndServe()
-	if err := server.ListenAndServe(); err != nil {
-		log.Fatal(err)
-	}
+	go func() {
+		fmt.Println("server is running on port 8080")
+		if err := server.ListenAndServe(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+	select {}
 }

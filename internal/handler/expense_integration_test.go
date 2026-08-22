@@ -32,8 +32,7 @@ func TestCreateExpenseIntegration(t *testing.T) {
 	expenseHandler := handler.NewExpenseHandler(expenseStore)
 
 	mux := http.NewServeMux()
-	mux.Handle("/expenses", expenseHandler)
-	mux.Handle("/expenses/{id}", expenseHandler)
+	mux.HandleFunc("POST /expenses", expenseHandler.CreateExpense)
 
 	t.Run("success", func(t *testing.T) {
 		expense := model.Expense{
@@ -148,7 +147,7 @@ func TestGetExpenseByIDIntegration(t *testing.T) {
 	expenseHandler := handler.NewExpenseHandler(expenseStore)
 
 	mux := http.NewServeMux()
-	mux.Handle("/expenses/{id}", expenseHandler)
+	mux.HandleFunc("GET /expenses/{id}", expenseHandler.GetExpenseByID)
 
 	t.Run("not found", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/expenses/999", nil)
@@ -261,8 +260,7 @@ func TestDeleteExpenseByIDIntegration(t *testing.T) {
 	expenseHandler := handler.NewExpenseHandler(expenseStore)
 
 	mux := http.NewServeMux()
-	mux.Handle("/expenses", expenseHandler)
-	mux.Handle("/expenses/{id}", expenseHandler)
+	mux.HandleFunc("DELETE /expenses/{id}", expenseHandler.DeleteExpenseByID)
 
 	t.Run("success", func(t *testing.T) {
 		// arrange
@@ -320,8 +318,7 @@ func TestUpdateExpenseIntegration(t *testing.T) {
 
 	mux := http.NewServeMux()
 
-	mux.Handle("/expenses", expenseHandler)
-	mux.Handle("/expenses/{id}", expenseHandler)
+	mux.HandleFunc("PUT /expenses/{id}", expenseHandler.UpdateExpenseByID)
 
 	t.Run("success", func(t *testing.T) {
 		// arrange

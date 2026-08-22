@@ -11,7 +11,7 @@ import (
 )
 
 type ExpenseStore interface {
-	GetAllExpenses() ([]model.Expense, error)
+	ListExpensess() ([]model.Expense, error)
 	GetExpenseByID(id int) (*model.Expense, error)
 	CreateExpense(expense model.Expense) (*model.Expense, error)
 	UpdateExpense(expense model.Expense) (*model.Expense, error)
@@ -28,8 +28,8 @@ func NewExpenseHandler(store ExpenseStore) *ExpenseHandler {
 	}
 }
 
-func (h *ExpenseHandler) getAllExpense(w http.ResponseWriter, r *http.Request) {
-	expenses, err := h.store.GetAllExpenses()
+func (h *ExpenseHandler) ListExpenses(w http.ResponseWriter, r *http.Request) {
+	expenses, err := h.store.ListExpensess()
 	if err != nil {
 		log.Printf("failed to get expenses: %v", err)
 		http.Error(
@@ -48,7 +48,7 @@ func (h *ExpenseHandler) getAllExpense(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *ExpenseHandler) createExpense(w http.ResponseWriter, r *http.Request) {
+func (h *ExpenseHandler) CreateExpense(w http.ResponseWriter, r *http.Request) {
 	var expense model.Expense
 
 	if err := json.NewDecoder(r.Body).Decode(&expense); err != nil {
@@ -89,7 +89,7 @@ func (h *ExpenseHandler) createExpense(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *ExpenseHandler) getExpenseByID(w http.ResponseWriter, r *http.Request) {
+func (h *ExpenseHandler) GetExpenseByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		http.Error(
@@ -127,7 +127,7 @@ func (h *ExpenseHandler) getExpenseByID(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func (h *ExpenseHandler) deleteExpenseByID(w http.ResponseWriter, r *http.Request) {
+func (h *ExpenseHandler) DeleteExpenseByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		http.Error(
@@ -158,7 +158,7 @@ func (h *ExpenseHandler) deleteExpenseByID(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *ExpenseHandler) updateExpenseByID(w http.ResponseWriter, r *http.Request) {
+func (h *ExpenseHandler) UpdateExpenseByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		http.Error(
@@ -215,42 +215,5 @@ func (h *ExpenseHandler) updateExpenseByID(w http.ResponseWriter, r *http.Reques
 
 	if err := json.NewEncoder(w).Encode(updatedExpense); err != nil {
 		log.Printf("failed to encode response: %v", err)
-	}
-}
-
-func (h *ExpenseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	switch r.Method {
-	case http.MethodGet:
-		if id != "" {
-			h.getExpenseByID(w, r)
-			return
-		}
-		h.getAllExpense(w, r)
-		return
-	case http.MethodPost:
-		if id != "" {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		h.createExpense(w, r)
-		return
-	case http.MethodDelete:
-		if id != "" {
-			h.deleteExpenseByID(w, r)
-			return
-		}
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	case http.MethodPut:
-		if id != "" {
-			h.updateExpenseByID(w, r)
-			return
-		}
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
 	}
 }

@@ -22,7 +22,7 @@ func NewExpenseSummaryHandler(store ExpenseSummaryStore) *ExpenseSummaryHandler 
 	}
 }
 
-func (h ExpenseSummaryHandler) getExpenseSummary(w http.ResponseWriter, r *http.Request) {
+func (h ExpenseSummaryHandler) GetExpenseSummary(w http.ResponseWriter, r *http.Request) {
 	summary, err := h.store.GetExpenseSummary()
 	if err != nil {
 		log.Printf("failed to get expense summary: %v", err)
@@ -39,16 +39,5 @@ func (h ExpenseSummaryHandler) getExpenseSummary(w http.ResponseWriter, r *http.
 
 	if err := json.NewEncoder(w).Encode(summary); err != nil {
 		log.Printf("failed to encode response: %v", err)
-	}
-}
-
-func (h ExpenseSummaryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		h.getExpenseSummary(w, r)
-		return
-	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
 	}
 }

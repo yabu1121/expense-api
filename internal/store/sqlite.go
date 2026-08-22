@@ -52,7 +52,7 @@ func (s *SQLiteStore) createTable() error {
 	return nil
 }
 
-func (s *SQLiteStore) GetAllExpenses() ([]model.Expense, error) {
+func (s *SQLiteStore) ListExpensess() ([]model.Expense, error) {
 	rows, err := s.db.Query(`
 		select id, title, amount, category
 		from expenses
