@@ -217,8 +217,8 @@ func TestUpdateExpense(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		expense := model.Expense{
-			Title: "coffee",
-			Amount: 500,
+			Title:    "coffee",
+			Amount:   500,
 			Category: "food",
 		}
 
@@ -228,9 +228,9 @@ func TestUpdateExpense(t *testing.T) {
 		}
 
 		update := model.Expense{
-			ID: 1,
-			Title: "latte",
-			Amount: 550,
+			ID:       1,
+			Title:    "latte",
+			Amount:   550,
 			Category: "food",
 		}
 
@@ -285,8 +285,8 @@ func TestUpdateExpense(t *testing.T) {
 func TestDeleteExpense(t *testing.T) {
 	expenseStore := newTestStore(t)
 	_, err := expenseStore.CreateExpense(model.Expense{
-		Title: "coffee",
-		Amount: 500,
+		Title:    "coffee",
+		Amount:   500,
 		Category: "food",
 	})
 	if err != nil {
@@ -311,4 +311,74 @@ func TestDeleteExpense(t *testing.T) {
 			t.Fatalf("expected model.ErrExpenseNotFound, got: %v", err)
 		}
 	})
+}
+
+func TestGetExpenseSummary(t *testing.T) {
+	tests := []struct {
+		name           string
+		expenses       []model.Expense
+		expectedResult model.ExpenseSummary
+	}{
+		{
+			name:  "success1",
+			expectedResult: model.ExpenseSummary{
+				Count:       0,
+				TotalAmount: 0,
+			},
+		},
+		{
+			name:  "success2",
+			expenses: []model.Expense{
+				{
+					ID:       1,
+					Title:    "coffee",
+					Amount:   500,
+					Category: "food",
+				},
+				{
+					ID:       2,
+					Title:    "latte",
+					Amount:   550,
+					Category: "food",
+				},
+			},
+			expectedResult: model.ExpenseSummary{
+				Count:       2,
+				TotalAmount: 1050,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expenseStore := newTestStore(t)
+			for _, expense := range tt.expenses {
+				_, err := expenseStore.CreateExpense(expense)
+				if err != nil {
+					t.Fatalf("failed to create expense: %v", err)
+				}
+			}
+
+			getExpenseSummary, err := expenseStore.GetExpenseSummary()
+			if err != nil {
+				t.Fatalf("failed to get expense summary: %v", err)
+			}
+
+			if getExpenseSummary.Count != tt.expectedResult.Count {
+				t.Fatalf(
+					"expected expense summary count %d, got %d",
+					tt.expectedResult.Count,
+					getExpenseSummary.Count,
+				)
+			}
+
+			if getExpenseSummary.TotalAmount != tt.expectedResult.TotalAmount {
+				t.Fatalf(
+					"expected expense summary total amount %d, got %d",
+					tt.expectedResult.TotalAmount,
+					getExpenseSummary.TotalAmount,
+				)
+			}
+		})
+	}
 }

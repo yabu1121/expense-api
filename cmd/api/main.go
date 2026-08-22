@@ -25,6 +25,7 @@ func main() {
 	defer expenseStore.Close()
 
 	expenseHandler := handler.NewExpenseHandler(expenseStore)
+	expenseSummaryHandler := handler.NewExpenseSummaryHandler(expenseStore)
 
 	mux := http.NewServeMux()
 
@@ -32,6 +33,7 @@ func main() {
 	mux.HandleFunc("/version", handler.VersionHandler)
 
 	mux.Handle("/expenses", expenseHandler)
+	mux.Handle("/expenses/summary", expenseSummaryHandler)
 	mux.Handle("/expenses/{id}", expenseHandler)
 
 	fmt.Println("server is running on port 8080")

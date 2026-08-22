@@ -167,3 +167,19 @@ func (s *SQLiteStore) DeleteExpense(id int) error {
 	}
 	return nil
 }
+
+func (s *SQLiteStore) GetExpenseSummary() (*model.ExpenseSummary, error) {
+	row := s.db.QueryRow(`
+		select count(*), coalesce(sum(amount), 0)
+		from expenses
+	`)
+
+	var summary model.ExpenseSummary
+	if err := row.Scan(
+		&summary.Count,
+		&summary.TotalAmount,
+	); err != nil {
+		return nil, err
+	}
+	return &summary, nil
+}

@@ -82,6 +82,24 @@ func (f *fakeExpenseStore) DeleteExpense(id int) error {
 	return nil
 }
 
+func (f *fakeExpenseStore) GetExpenseSummary() (*model.ExpenseSummary, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	var count, total_amount int
+
+	for _, expense := range f.expenses {
+		count += 1
+		total_amount += expense.Amount
+	}
+
+	return &model.ExpenseSummary{
+		Count:       count,
+		TotalAmount: total_amount,
+	}, nil
+}
+
 func TestGetAllExpenses(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -700,6 +718,102 @@ func TestUpdateExpenseByID(t *testing.T) {
 						updatedExpense.Category,
 					)
 				}
+			}
+		})
+	}
+}
+
+func TestGetExpenseSummary(t *testing.T) {
+	tests := []struct {
+		name           string
+		store          *fakeExpenseStore
+		expectedResult model.ExpenseSummary
+		expectedStatus int
+	}{
+		{
+			name: "success",
+			store: &fakeExpenseStore{
+				expenses: []model.Expense{
+					{
+						ID:       1,
+						Title:    "coffee",
+						Amount:   500,
+						Category: "food",
+					},
+					{
+						ID:       2,
+						Title:    "latte",
+						Amount:   550,
+						Category: "food",
+					},
+				},
+			},
+			expectedResult: model.ExpenseSummary{
+				Count:       2,
+				TotalAmount: 1050,
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "success2",
+			store: &fakeExpenseStore{
+				expenses: []model.Expense{
+					{
+						ID:       1,
+						Title:    "coffee",
+						Amount:   500,
+						Category: "food",
+					},
+					{
+						ID:       2,
+						Title:    "latte",
+						Amount:   550,
+						Category: "food",
+					},
+					{
+						ID:       3,
+						Title:    "moca",
+						Amount:   700,
+						Category: "food",
+					},
+				},
+			},
+			expectedResult: model.ExpenseSummary{
+				Count:       3,
+				TotalAmount: 1750,
+			},
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewExpenseSummaryHandler(tt.store)
+
+			recorder := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/expenses/summary", nil)
+
+			handler.ServeHTTP(recorder, req)
+
+			if recorder.Code != tt.expectedStatus {
+				t.Fatalf(
+					"expected status %d, got %d",
+					tt.expectedStatus,
+					recorder.Code,
+				)
+			}
+
+			var res model.ExpenseSummary
+			if err := json.NewDecoder(recorder.Body).Decode(&res); err != nil {
+				t.Fatalf("failed to decode expense summary: %v", err)
+			}
+
+			if res.Count != tt.expectedResult.Count {
+				t.Fatalf("result count is not matched")
+			}
+
+			if res.TotalAmount != tt.expectedResult.TotalAmount {
+				t.Fatalf("result total amount is not matched")
 			}
 		})
 	}
