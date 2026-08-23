@@ -1,216 +1,276 @@
 # Expense API
 
-REST API for managing expenses built with Go standard libraries and SQLite.
+Goの標準ライブラリとSQLiteを使った、支出管理用のREST APIです。
 
----
+WebフレームワークやORMを使う前に、HTTP、JSON、SQL、テスト、Dockerの仕組みを理解することを目的とした学習用プロジェクトです。
 
-# Context
+## 技術スタック
 
-## Why this project?
+- Go
+- `net/http`
+- `encoding/json`
+- `database/sql`
+- SQLite（`modernc.org/sqlite`ドライバ）
+- Docker / Docker Compose
 
-このプロジェクトは、GoのWebフレームワークやORMを利用する前に、
+## 設計
 
-- HTTPサーバがどのように動作するのか
-- SQLをどのように実行するのか
-- REST APIがどのように構成されるのか
+HTTP処理とDB処理を分離するため、Handler / Store / Modelの3層構成を採用しています。
 
-を理解することを目的として開発した。
-
-そのため、Gin・Echo・GORMなどは利用せず、
-
-- net/http
-- database/sql
-- SQLite
-
-のみを使用して実装している。
-
----
-
-## Design Goals
-
-設計時には以下を意識した。
-
-### 1. Responsibility Separation
-
-HTTP処理とDB処理を分離するため、
-
-- Handler
-- Store
-- Model
-
-の3層構成を採用した。
-
-HandlerはHTTP通信のみを担当し、
-SQLの知識を持たない。
-
-StoreはSQLのみを担当し、
-HTTPの知識を持たない。
-
-Modelはデータ構造のみを保持する。
-
-この分離により、
-各レイヤーを独立して変更しやすい構成となっている。
-
----
-
-### 2. Standard Library Only
-
-フレームワークに依存しないよう、
-Go標準ライブラリのみを利用した。
-
-HTTPサーバは
-
-```go
-net/http
+```text
+Client
+  ↓ HTTP / JSON
+Handler
+  ↓ Model / Filter
+Store
+  ↓ SQL
+SQLite
 ```
 
-DBアクセスは
+- Handler：ルーティング、HTTP入力、JSON、ステータスコード
+- Store：`database/sql`とSQLiteによるデータ操作
+- Model：Expense、集計結果、validation、検索条件
 
-```go
-database/sql
+Handler側に小さなStore interfaceを置き、テストではFake Storeを注入します。
+
+## ディレクトリ構成
+
+```text
+.
+├── cmd/api/main.go                  # 依存関係の組み立てとHTTPサーバー
+├── internal/handler/                # HTTP・JSON・ルーティング
+├── internal/model/                  # Model・validation・検索条件
+├── internal/store/                  # SQLiteとSQL
+├── Dockerfile                       # マルチステージビルド
+├── docker-compose.yml               # APIと永続volume
+└── .env.sample                      # 環境変数の例
 ```
 
-JSON処理は
+`cmd/api/main.go`でSQLite Storeを生成してHandlerへ注入し、Go 1.22以降のメソッド付きパターンで各ルートを`http.ServeMux`へ登録します。
 
-```go
-encoding/json
+## API
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/health` | ヘルスチェック |
+| GET | `/version` | バージョン情報 |
+| GET | `/expenses` | 支出一覧 |
+| GET | `/expenses/{id}` | 支出の1件取得 |
+| POST | `/expenses` | 支出の作成 |
+| PUT | `/expenses/{id}` | 支出の更新 |
+| DELETE | `/expenses/{id}` | 支出の削除 |
+| GET | `/expenses/summary` | 件数と合計金額の取得 |
+
+### 支出一覧の検索条件
+
+`GET /expenses`では、次のクエリパラメータを組み合わせられます。
+
+| Parameter | Example | Description |
+|---|---|---|
+| `category` | `food` | カテゴリの完全一致 |
+| `limit` | `10` | 最大取得件数（1以上） |
+| `offset` | `20` | 先頭から飛ばす件数（0以上、limit必須） |
+
+```bash
+curl "http://localhost:8080/expenses?category=food&limit=10&offset=0"
 ```
 
-を利用している。
+不正な`limit`・`offset`には`400 Bad Request`を返します。
 
----
+### Expenseの例
 
-### 3. SQL First
+```json
+{
+  "id": 1,
+  "title": "coffee",
+  "amount": 500,
+  "category": "food"
+}
+```
 
-ORMを利用せず、
-SQLを直接記述している。
+### 入力ルール
 
-そのため、
+POST・PUTでは、JSONをDecodeした後にtitleとcategoryの前後空白を除去してからvalidationを行います。
 
-- SELECT
-- INSERT
-- UPDATE
-- DELETE
+| Field | Rule |
+|---|---|
+| `title` | 空文字・空白のみは不可 |
+| `amount` | 1以上の整数 |
+| `category` | 空文字・空白のみは不可 |
 
-それぞれについて、
-database/sqlの
+### CRUDの使用例
 
-- Query
-- QueryRow
-- Exec
+作成：
 
-を使い分けている。
+```bash
+curl -i -X POST http://localhost:8080/expenses \
+  -H "Content-Type: application/json" \
+  -d '{"title":"coffee","amount":500,"category":"food"}'
+```
 
----
+一覧・1件取得：
 
-## Error Handling
+```bash
+curl -i http://localhost:8080/expenses
+curl -i http://localhost:8080/expenses/1
+```
 
-HTTPステータスコードを適切に返すことを意識した。
+更新：
+
+```bash
+curl -i -X PUT http://localhost:8080/expenses/1 \
+  -H "Content-Type: application/json" \
+  -d '{"title":"latte","amount":550,"category":"food"}'
+```
+
+削除：
+
+```bash
+curl -i -X DELETE http://localhost:8080/expenses/1
+```
+
+作成は`201 Created`、取得・更新は`200 OK`、削除は`204 No Content`を返します。
+
+### Summaryの例
+
+```json
+{
+  "count": 2,
+  "total_amount": 1050
+}
+```
+
+集計SQLでは`COUNT`、`SUM`、`COALESCE`を使用し、Expenseが0件の場合も合計金額を`0`として返します。
+
+## データベース
+
+アプリケーション起動時に`CREATE TABLE IF NOT EXISTS`を実行し、テーブルがなければ自動作成します。現時点では独立したmigrationツールは使用していません。
+
+```sql
+CREATE TABLE IF NOT EXISTS expenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    amount INTEGER,
+    category TEXT
+);
+```
+
+一覧取得では`ExpenseFilter`を使い、指定された条件だけをSQLへ追加します。
+
+```text
+Categoryあり → WHERE category = ?
+Limitあり    → LIMIT ?
+Offsetあり   → OFFSET ?
+```
+
+値は文字列連結せずプレースホルダーの引数として渡します。結果は常にID昇順です。
+
+## エラーハンドリング
 
 | Error | Status |
-|-------|--------|
+|---|---|
 | Invalid JSON | 400 |
 | Invalid ID | 400 |
+| Invalid filter | 400 |
 | Expense Not Found | 404 |
+| Method Not Allowed | 405 |
 | Internal Error | 500 |
 
-存在しないレコードを更新・削除した場合は、
+存在しないExpenseの取得では`sql.ErrNoRows`をアプリケーションのNot Foundエラーへ変換します。更新・削除では`RowsAffected()`が0の場合にNot Foundとして扱います。
 
-RowsAffected()
+## ローカル起動
 
-を利用し、
+必要なもの：
 
-```go
-sql.ErrNoRows
+- Go（`go.mod`に記載されたバージョン）
+- curlなどのHTTPクライアント
+
+最短手順：
+
+```bash
+go mod download
+go test ./...
+go run ./cmd/api
 ```
 
-を返すことで
-Handler側で404を返却している。
+SQLiteのパスは`DB_PATH`環境変数で変更できます。未指定の場合は`expenses.db`を使用します。
 
----
-
-## Request Flow
-
-```
-Client
-   │
-   ▼
-HTTP Request
-   │
-   ▼
-Handler
-   │
-JSON Decode
-   │
-   ▼
-Store
-   │
-SQL
-   │
-   ▼
-SQLite
-   │
-Rows
-   ▼
-Store
-   │
-Model
-   ▼
-Handler
-   │
-JSON Encode
-   ▼
-Client
+```bash
+DB_PATH=./expenses-dev.db go run ./cmd/api
 ```
 
----
+## テスト
 
-## API Design
+```bash
+go vet ./...
+go test ./...
+```
 
-REST APIとして
+- `httptest`とFake StoreによるHandlerテスト
+- 一時SQLite DBを使ったStoreテスト
+- HandlerとSQLite Storeを接続したIntegrationテスト
+- `t.TempDir()`によるテストケースごとのDB分離
 
-GET
-POST
-PUT
-DELETE
+## Docker Compose
 
-を実装した。
+Dockerfileは、Goイメージでバイナリをビルドし、実行用の`debian:stable-slim`へバイナリだけをコピーするマルチステージ構成です。
 
-各エンドポイントでは
+起動：
 
-- JSON Request
-- JSON Response
-- HTTP Status
+```bash
+docker compose up --build -d
+```
 
-を統一している。
+ログ：
 
----
+```bash
+docker compose logs -f api
+```
 
-## What I Learned
+終了：
 
-このプロジェクトでは
+```bash
+docker compose down
+```
 
-- HTTPサーバの構築
-- REST API設計
-- SQL実装
-- database/sql
-- JSONエンコード・デコード
-- Layered Architecture
-- Error Handling
+SQLiteデータは`expense-data`という名前付きvolumeへ保存されます。通常の`docker compose down`ではvolumeは削除されません。
 
-について理解を深めた。
+動作確認：
 
----
+```bash
+curl -i http://localhost:8080/health
+curl -i http://localhost:8080/expenses
+```
+
+## 学習した内容
+
+- `http.ServeMux`のメソッド付きルーティング
+- JSONのEncode / Decode
+- NormalizeとValidate
+- `Query` / `QueryRow` / `Exec`
+- `LastInsertId` / `RowsAffected` / `sql.ErrNoRows`
+- SQL集計と動的な検索条件
+- interfaceと依存性注入
+- Unit Test / Integration Test
+- Dockerのマルチステージビルド
+- Docker volumeによるSQLite永続化
+
+## 現在の開発状況
+
+- Expense CRUD：実装済み
+- カテゴリ絞り込み：実装済み
+- limit・offset：実装済み
+- Summary API：実装済み
+- Handler / Store / Integrationテスト：実装済み
+- Docker ComposeとSQLite永続化：実装済み
+- Graceful shutdown：未完成
+
+Graceful shutdownは今後の課題です。現在はHTTPサーバーをgoroutineで起動してmain goroutineを待機させていますが、SIGINT・SIGTERMの受信、`server.Shutdown`、終了タイムアウトはまだ実装していません。
 
 ## Future Work
 
-今後は
-
-- Docker
-- PostgreSQL
-- Unit Test
+- Graceful shutdown
+- PostgreSQL対応
 - GitHub Actions
 - Kubernetes
 - Terraform
-
-へ発展させる予定である。
