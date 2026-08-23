@@ -52,46 +52,31 @@ func (s *SQLiteStore) createTable() error {
 	return nil
 }
 
-func (s *SQLiteStore) ListExpenses() ([]model.Expense, error) {
-	rows, err := s.db.Query(`
+func (s *SQLiteStore) ListExpenses(filter model.ExpenseFilter) ([]model.Expense, error) {
+	query := `
 		select id, title, amount, category
 		from expenses
-		order by id asc
-	`)
-	if err != nil {
-		return nil, err
+	`
+	args := make([]any, 0, 3)
+
+	if filter.Category != "" {
+		query += " where category = ?"
+		args = append(args, filter.Category)
 	}
-	defer rows.Close()
 
-	expenses := make([]model.Expense, 0)
+	query += " order by id asc"
 
-	for rows.Next() {
-		var expense model.Expense
-		err := rows.Scan(
-			&expense.ID,
-			&expense.Title,
-			&expense.Amount,
-			&expense.Category,
-		)
-		if err != nil {
-			return nil, err
+	if filter.Limit > 0 {
+		query += " limit ?"
+		args = append(args, filter.Limit)
+
+		if filter.Offset > 0 {
+			query += " offset ?"
+			args = append(args, filter.Offset)
 		}
-
-		expenses = append(expenses, expense)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return expenses, nil
-}
 
-func (s *SQLiteStore) ListExpensesByCategory(category string) ([]model.Expense, error) {
-	rows, err := s.db.Query(`
-		select id, title, amount, category
-		from expenses
-		where category = ?
-		order by id asc
-	`, category)
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

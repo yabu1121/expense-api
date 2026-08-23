@@ -157,7 +157,7 @@ func TestListExpenses(t *testing.T) {
 			}
 		}
 
-		gotExpenses, err := expenseStore.ListExpenses()
+		gotExpenses, err := expenseStore.ListExpenses(model.ExpenseFilter{})
 		if err != nil {
 			t.Fatalf("failed to get all expenses: %v", err)
 		}
@@ -202,7 +202,7 @@ func TestListExpenses(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		emptyStore := newTestStore(t)
 
-		got, err := emptyStore.ListExpenses()
+		got, err := emptyStore.ListExpenses(model.ExpenseFilter{})
 
 		if err != nil {
 			t.Fatalf("failed to get all expenses: %v", err)
@@ -213,6 +213,7 @@ func TestListExpenses(t *testing.T) {
 		}
 	})
 }
+
 func TestListExpensesByCategory(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -303,7 +304,9 @@ func TestListExpensesByCategory(t *testing.T) {
 				}
 			}
 
-			gotExpenses, err := expenseStore.ListExpensesByCategory(tt.category)
+			gotExpenses, err := expenseStore.ListExpenses(model.ExpenseFilter{
+				Category: tt.category,
+			})
 			if err != nil {
 				t.Fatalf("failed to list expenses by category: %v", err)
 			}
@@ -314,6 +317,7 @@ func TestListExpensesByCategory(t *testing.T) {
 		})
 	}
 }
+
 func TestUpdateExpense(t *testing.T) {
 	expenseStore := newTestStore(t)
 

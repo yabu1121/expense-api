@@ -10,3 +10,9 @@ type ExpenseSummary struct {
 	Count       int `json:"count"`
 	TotalAmount int `json:"total_amount"`
 }
+
+type ExpenseFilter struct {
+	Category string
+	Limit    int
+	Offset   int
+}

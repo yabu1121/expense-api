@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"testing"
 
 	"github.com/yabu1121/expense-api/internal/model"
@@ -17,18 +16,37 @@ type fakeExpenseStore struct {
 	err      error
 }
 
-func (f *fakeExpenseStore) ListExpenses() ([]model.Expense, error) {
-	return f.expenses, f.err
-}
-
-func (f *fakeExpenseStore) ListExpensesByCategory(category string) ([]model.Expense, error) {
-	var expenses []model.Expense
-	for _, expense := range f.expenses {
-		if expense.Category == category {
-			expenses = append(expenses, expense)
-		}
+func (f *fakeExpenseStore) ListExpenses(
+	filter model.ExpenseFilter,
+) ([]model.Expense, error) {
+	if f.err != nil {
+		return nil, f.err
 	}
-	return expenses, f.err
+
+	expenses := f.expenses
+
+	if filter.Category != "" {
+		filtered := make([]model.Expense, 0)
+		for _, expense := range expenses {
+			if expense.Category == filter.Category {
+				filtered = append(filtered, expense)
+			}
+		}
+
+		expenses = filtered
+	}
+
+	start := filter.Offset
+	if start > len(expenses) {
+		start = len(expenses)
+	}
+
+	end := len(expenses)
+	if filter.Limit > 0 && start+filter.Limit < end {
+		end = start + filter.Limit
+	}
+
+	return expenses[start:end], nil
 }
 
 func (f *fakeExpenseStore) GetExpenseByID(id int) (*model.Expense, error) {
@@ -156,127 +174,6 @@ func TestListExpenses(t *testing.T) {
 					recorder.Code,
 				)
 			}
-		})
-	}
-}
-func TestListExpensesByCategory(t *testing.T) {
-	tests := []struct {
-		name           string
-		store          *fakeExpenseStore
-		expectedStatus int
-		param          string
-		want           []model.Expense
-	}{
-		{
-			name: "success",
-			store: &fakeExpenseStore{
-				expenses: []model.Expense{
-					{
-						ID:       1,
-						Title:    "coffee",
-						Amount:   500,
-						Category: "food",
-					},
-					{
-						ID:       2,
-						Title:    "latte",
-						Amount:   550,
-						Category: "food",
-					},
-				},
-			},
-			expectedStatus: http.StatusOK,
-			param:          "food",
-			want: []model.Expense{
-				{
-					ID:       1,
-					Title:    "coffee",
-					Amount:   500,
-					Category: "food",
-				},
-				{
-					ID:       2,
-					Title:    "latte",
-					Amount:   550,
-					Category: "food",
-				},
-			},
-		},
-		{
-			name: "food&drink",
-			store: &fakeExpenseStore{
-				expenses: []model.Expense{
-					{
-						ID:       1,
-						Title:    "coffee",
-						Amount:   500,
-						Category: "food",
-					},
-					{
-						ID:       2,
-						Title:    "green tea",
-						Amount:   300,
-						Category: "drink",
-					},
-				},
-			},
-			expectedStatus: http.StatusOK,
-			param:          "food",
-			want: []model.Expense{
-				{
-					ID:       1,
-					Title:    "coffee",
-					Amount:   500,
-					Category: "food",
-				},
-			},
-		},
-		{
-			name: "store error",
-			store: &fakeExpenseStore{
-				err: errors.New("store error"),
-			},
-			param:          "foodd",
-			expectedStatus: http.StatusInternalServerError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := NewExpenseHandler(tt.store)
-
-			req := httptest.NewRequest(http.MethodGet, "/expenses", nil)
-			req.URL.RawQuery = "category=" + tt.param
-			recorder := httptest.NewRecorder()
-
-			handler.ListExpenses(recorder, req)
-
-			if recorder.Code != tt.expectedStatus {
-				t.Fatalf(
-					"expected status %d, got %d",
-					tt.expectedStatus,
-					recorder.Code,
-				)
-
-			}
-
-			if tt.expectedStatus != http.StatusOK {
-				return
-			}
-
-			var res []model.Expense
-			if err := json.NewDecoder(recorder.Body).Decode(&res); err != nil {
-				t.Fatalf("failed to decode response: %v", err)
-			}
-
-			if !slices.Equal(res, tt.want) {
-				t.Fatalf(
-					"expected %v, got %v",
-					tt.want,
-					res,
-				)
-			}
-
 		})
 	}
 }

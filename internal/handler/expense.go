@@ -11,8 +11,7 @@ import (
 )
 
 type ExpenseStore interface {
-	ListExpenses() ([]model.Expense, error)
-	ListExpensesByCategory(category string) ([]model.Expense, error)
+	ListExpenses(filter model.ExpenseFilter) ([]model.Expense, error)
 	GetExpenseByID(id int) (*model.Expense, error)
 	CreateExpense(expense model.Expense) (*model.Expense, error)
 	UpdateExpense(expense model.Expense) (*model.Expense, error)
@@ -30,17 +29,49 @@ func NewExpenseHandler(store ExpenseStore) *ExpenseHandler {
 }
 
 func (h *ExpenseHandler) ListExpenses(w http.ResponseWriter, r *http.Request) {
-	var expenses []model.Expense
-	var err error
+	categoryFilter := r.URL.Query().Get("category")
+	limitParam := r.URL.Query().Get("limit")
+	offsetParam := r.URL.Query().Get("offset")
 
-	category := r.URL.Query().Get("category")
-
-	if category != "" {
-		expenses, err = h.store.ListExpensesByCategory(category)
-	} else {
-		expenses, err = h.store.ListExpenses()
+	filter := model.ExpenseFilter{
+		Category: categoryFilter,
 	}
 
+	if limitParam != "" {
+		limit, err := strconv.Atoi(limitParam)
+		if err != nil || limit <= 0 {
+			http.Error(
+				w,
+				"invalid limit",
+				http.StatusBadRequest,
+			)
+			return
+		}
+		filter.Limit = limit
+	}
+
+	if offsetParam != "" {
+		if limitParam == "" {
+			http.Error(
+				w,
+				"offset requires limit",
+				http.StatusBadRequest,
+			)
+			return
+		}
+		offset, err := strconv.Atoi(offsetParam)
+		if err != nil || offset < 0 {
+			http.Error(
+				w,
+				"invalid offset",
+				http.StatusBadRequest,
+			)
+			return
+		}
+		filter.Offset = offset
+	}
+
+	expenses, err := h.store.ListExpenses(filter)
 	if err != nil {
 		log.Printf("failed to get expenses: %v", err)
 		http.Error(
