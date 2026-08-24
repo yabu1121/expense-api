@@ -1,6 +1,6 @@
 module github.com/yabu1121/expense-api
 
-go 1.26.5
+go 1.27
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

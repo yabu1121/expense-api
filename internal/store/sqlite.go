@@ -26,7 +26,12 @@ func NewSQLiteStore(filePath string) (*SQLiteStore, error) {
 		db: db,
 	}
 
-	if err := sqliteStore.createTable(); err != nil {
+	if err := sqliteStore.createCategoryTable(); err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	if err := sqliteStore.createExpenseTable(); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -37,9 +42,22 @@ func (s *SQLiteStore) Close() error {
 	return s.db.Close()
 }
 
-func (s *SQLiteStore) createTable() error {
+func (s *SQLiteStore) createCategoryTable() error {
+	_, err := s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS categories (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE
+		)
+	`)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *SQLiteStore) createExpenseTable() error {
 	_, err := s.db.Exec(
-		`CREATE TABLE IF NOT EXISTS expenses(
+		`CREATE TABLE IF NOT EXISTS expenses (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			title TEXT NOT NULL,
 			amount INTEGER,
