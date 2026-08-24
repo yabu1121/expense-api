@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"uuid"
 
 	"github.com/yabu1121/expense-api/internal/model"
 	_ "modernc.org/sqlite"
@@ -219,4 +220,18 @@ func (s *SQLiteStore) GetExpenseSummary() (*model.ExpenseSummary, error) {
 		return nil, err
 	}
 	return &summary, nil
+}
+
+func (s *SQLiteStore) CreateCategory(category model.Category) (*model.Category, error) {
+	category.ID = uuid.NewV7()
+
+	_, err := s.db.Exec(`
+	insert into categories (id, name)
+		values (?, ?)
+	`, category.ID.String(), category.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	return &category, nil
 }

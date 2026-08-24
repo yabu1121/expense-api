@@ -4,12 +4,14 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"uuid"
 
 	"github.com/yabu1121/expense-api/internal/model"
 )
 
+// expense
 func TestCreateExpense(t *testing.T) {
-	expenseStore := newTestStore(t)
+	expenseStore := newExpenseTestStore(t)
 
 	expense := model.Expense{
 		Title:    "coffee",
@@ -31,45 +33,22 @@ func TestCreateExpense(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			createdExpense, err := expenseStore.CreateExpense(expense)
+			createdExpense, err := expenseStore.CreateExpense(tt.body)
 			if err != nil {
 				t.Fatalf("failed to insert expense: %v", err)
 			}
+			expected := tt.body
+			expected.ID = 1
 
-			if createdExpense.ID != 1 {
-				t.Fatalf(
-					"expected expense ID %d, got %d",
-					1,
-					createdExpense.ID,
-				)
-			}
-			if createdExpense.Title != expense.Title {
-				t.Fatalf(
-					"expected expense title %s, got %s",
-					expense.Title,
-					createdExpense.Title,
-				)
-			}
-			if createdExpense.Amount != expense.Amount {
-				t.Fatalf(
-					"expected expense amount %d, got %d",
-					expense.Amount,
-					createdExpense.Amount,
-				)
-			}
-			if createdExpense.Category != expense.Category {
-				t.Fatalf(
-					"expected expense category %s, got %s",
-					expense.Category,
-					createdExpense.Category,
-				)
+			if *createdExpense != expected {
+				t.Fatalf("expected %+v, got %+v", expected, *createdExpense)
 			}
 		})
 	}
 }
 
 func TestGetExpenseByID(t *testing.T) {
-	expenseStore := newTestStore(t)
+	expenseStore := newExpenseTestStore(t)
 
 	t.Run("success", func(t *testing.T) {
 		expense := model.Expense{
@@ -134,7 +113,7 @@ func TestGetExpenseByID(t *testing.T) {
 }
 
 func TestListExpenses(t *testing.T) {
-	expenseStore := newTestStore(t)
+	expenseStore := newExpenseTestStore(t)
 
 	expenses := []model.Expense{
 		{
@@ -200,7 +179,7 @@ func TestListExpenses(t *testing.T) {
 	})
 
 	t.Run("empty", func(t *testing.T) {
-		emptyStore := newTestStore(t)
+		emptyStore := newExpenseTestStore(t)
 
 		got, err := emptyStore.ListExpenses(model.ExpenseFilter{})
 
@@ -296,7 +275,7 @@ func TestListExpensesByCategory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			expenseStore := newTestStore(t)
+			expenseStore := newExpenseTestStore(t)
 			for _, e := range tt.expenses {
 				_, err := expenseStore.CreateExpense(e)
 				if err != nil {
@@ -319,7 +298,7 @@ func TestListExpensesByCategory(t *testing.T) {
 }
 
 func TestUpdateExpense(t *testing.T) {
-	expenseStore := newTestStore(t)
+	expenseStore := newExpenseTestStore(t)
 
 	t.Run("success", func(t *testing.T) {
 		expense := model.Expense{
@@ -389,7 +368,7 @@ func TestUpdateExpense(t *testing.T) {
 }
 
 func TestDeleteExpense(t *testing.T) {
-	expenseStore := newTestStore(t)
+	expenseStore := newExpenseTestStore(t)
 	_, err := expenseStore.CreateExpense(model.Expense{
 		Title:    "coffee",
 		Amount:   500,
@@ -457,7 +436,7 @@ func TestGetExpenseSummary(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			expenseStore := newTestStore(t)
+			expenseStore := newExpenseTestStore(t)
 			for _, expense := range tt.expenses {
 				_, err := expenseStore.CreateExpense(expense)
 				if err != nil {
@@ -483,6 +462,48 @@ func TestGetExpenseSummary(t *testing.T) {
 					"expected expense summary total amount %d, got %d",
 					tt.expectedResult.TotalAmount,
 					getExpenseSummary.TotalAmount,
+				)
+			}
+		})
+	}
+}
+
+// category
+func TestCreateCategory(t *testing.T) {
+	categoryStore := newCategoryTestStore(t)
+
+	category := model.Category{
+		Name: "food",
+	}
+
+	tests := []struct {
+		name  string
+		body  model.Category
+		store SQLiteStore
+	}{
+		{
+			name:  "success",
+			body:  category,
+			store: SQLiteStore{db: categoryStore.db},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			createdCategory, err := tt.store.CreateCategory(tt.body)
+			if err != nil {
+				t.Fatalf("failed to insert category: %v", err)
+			}
+
+			if createdCategory.ID == uuid.Nil() {
+				t.Fatal("expected category ID to be generated")
+			}
+
+			if createdCategory.Name != tt.body.Name {
+				t.Fatalf(
+					"expected category name %s, got %s",
+					tt.body.Name,
+					createdCategory.Name,
 				)
 			}
 		})
