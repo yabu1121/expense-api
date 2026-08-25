@@ -17,15 +17,16 @@ func main() {
 		dbPath = "expenses.db"
 	}
 
-	expenseStore, err := store.NewSQLiteStore(dbPath)
+	store, err := store.NewSQLiteStore(dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	defer expenseStore.Close()
+	defer store.Close()
 
-	expenseHandler := handler.NewExpenseHandler(expenseStore)
-	expenseSummaryHandler := handler.NewExpenseSummaryHandler(expenseStore)
+	expenseHandler := handler.NewExpenseHandler(store)
+	expenseSummaryHandler := handler.NewExpenseSummaryHandler(store)
+	categoryHandler := handler.NewCategoryHandler(store)
 
 	mux := http.NewServeMux()
 
@@ -39,6 +40,10 @@ func main() {
 	mux.HandleFunc("DELETE /expenses/{id}", expenseHandler.DeleteExpenseByID)
 
 	mux.HandleFunc("GET /expenses/summary", expenseSummaryHandler.GetExpenseSummary)
+
+	mux.HandleFunc("GET /categories", categoryHandler.ListCategories)
+	mux.HandleFunc("POST /categories", categoryHandler.CreateCategory)
+
 
 	server := &http.Server{
 		Addr:    ":8080",

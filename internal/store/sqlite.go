@@ -235,3 +235,36 @@ func (s *SQLiteStore) CreateCategory(category model.Category) (*model.Category, 
 
 	return &category, nil
 }
+
+func (s *SQLiteStore) ListCategories() ([]model.Category, error) {
+	rows, err := s.db.Query(`
+		select id, name
+		from categories
+		order by name asc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+
+	categories := make([]model.Category, 0)
+
+	var category model.Category
+
+	for rows.Next() {
+		err = rows.Scan(
+			&category.ID,
+			&category.Name,
+		)
+		if err != nil {
+			return nil, err
+		}
+		categories = append(categories, category)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return categories, nil
+}

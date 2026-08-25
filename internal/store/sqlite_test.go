@@ -1,6 +1,7 @@
 package store
 
 import (
+	"cmp"
 	"errors"
 	"slices"
 	"testing"
@@ -504,6 +505,67 @@ func TestCreateCategory(t *testing.T) {
 					"expected category name %s, got %s",
 					tt.body.Name,
 					createdCategory.Name,
+				)
+			}
+		})
+	}
+}
+
+func TestListCategories(t *testing.T) {
+	tests := []struct {
+		name       string
+		categories []model.Category
+	}{
+		{
+			name: "none",
+		},
+		{
+			name: "one category",
+			categories: []model.Category{
+				{
+					Name: "food",
+				},
+			},
+		},
+		{
+			name: "two category",
+			categories: []model.Category{
+				{
+					Name: "food",
+				},
+				{
+					Name: "drink",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			categoryStore := newCategoryTestStore(t)
+			want := make([]model.Category, 0)
+			for _, category := range tt.categories {
+				createdCategory, err := categoryStore.CreateCategory(category)
+				if err != nil {
+					t.Fatalf("failed to create category: %v", err)
+				}
+				want = append(want, *createdCategory)
+			}
+
+			categories, err := categoryStore.ListCategories()
+			if err != nil {
+				t.Fatalf("failed to list category: %v", err)
+			}
+
+			slices.SortFunc(want, func(a, b model.Category) int {
+				return cmp.Compare(a.Name, b.Name)
+			})
+
+			if !slices.Equal(categories, want) {
+				t.Fatalf(
+					"expected %+v, got %+v",
+					want,
+					categories,
 				)
 			}
 		})
