@@ -139,6 +139,14 @@ func TestCreateCategory(t *testing.T) {
 			},
 			expectedStatus: http.StatusInternalServerError,
 		},
+		{
+			name: "conflict",
+			body: validBody,
+			store: &fakeCategoryStore{
+				err: model.ErrCategoryAlreadyExists,
+			},
+			expectedStatus: http.StatusConflict,
+		},
 	}
 
 	for _, tt := range tests {

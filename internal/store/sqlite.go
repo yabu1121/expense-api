@@ -6,7 +6,8 @@ import (
 	"uuid"
 
 	"github.com/yabu1121/expense-api/internal/model"
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 type SQLiteStore struct {
@@ -229,7 +230,14 @@ func (s *SQLiteStore) CreateCategory(category model.Category) (*model.Category, 
 	insert into categories (id, name)
 		values (?, ?)
 	`, category.ID.String(), category.Name)
+
 	if err != nil {
+		var sqlErr *sqlite.Error
+		if errors.As(err, &sqlErr) {
+			if sqlErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
+				return nil, model.ErrCategoryAlreadyExists
+			}
+		}
 		return nil, err
 	}
 
@@ -246,7 +254,6 @@ func (s *SQLiteStore) ListCategories() ([]model.Category, error) {
 		return nil, err
 	}
 	defer rows.Close()
-
 
 	categories := make([]model.Category, 0)
 

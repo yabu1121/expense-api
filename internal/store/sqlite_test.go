@@ -471,29 +471,55 @@ func TestGetExpenseSummary(t *testing.T) {
 
 // category
 func TestCreateCategory(t *testing.T) {
-	categoryStore := newCategoryTestStore(t)
-
 	category := model.Category{
 		Name: "food",
 	}
 
 	tests := []struct {
-		name  string
-		body  model.Category
-		store SQLiteStore
+		name     string
+		existing []model.Category
+		body     model.Category
+		wantErr  error
 	}{
 		{
-			name:  "success",
-			body:  category,
-			store: SQLiteStore{db: categoryStore.db},
+			name:    "success",
+			body:    category,
+			wantErr: nil,
+		},
+		{
+			name: "conflict",
+			existing: []model.Category{
+				{
+					Name: "food",
+				},
+			},
+			body:    category,
+			wantErr: model.ErrCategoryAlreadyExists,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			createdCategory, err := tt.store.CreateCategory(tt.body)
+			categoryStore := newCategoryTestStore(t)
+			if tt.existing != nil {
+				for _, c := range tt.existing {
+					id := uuid.NewV7()
+					_, err := categoryStore.db.Exec(`
+						insert into categories (id, name) values (?, ?)
+					`, id, c.Name)
+					if err != nil {
+						t.Fatalf("failed to prepare category: %v", err)
+					}
+				}
+			}
+
+			createdCategory, err := categoryStore.CreateCategory(tt.body)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("expected error %v, got %v", tt.wantErr, err)
+			}
+
 			if err != nil {
-				t.Fatalf("failed to insert category: %v", err)
+				return
 			}
 
 			if createdCategory.ID == uuid.Nil() {

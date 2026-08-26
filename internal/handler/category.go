@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
@@ -66,6 +67,14 @@ func (h *CategoryHandler) CreateCategory(w http.ResponseWriter, r *http.Request)
 
 	createdCategory, err := h.store.CreateCategory(category)
 	if err != nil {
+		if errors.Is(err, model.ErrCategoryAlreadyExists) {
+			http.Error(
+				w,
+				err.Error(),
+				http.StatusConflict,
+			)
+			return
+		}
 		http.Error(
 			w,
 			"failed to create category",
@@ -75,7 +84,7 @@ func (h *CategoryHandler) CreateCategory(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-  w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusCreated)
 
 	if err := json.NewEncoder(w).Encode(createdCategory); err != nil {
 		log.Printf("failed to encode response: %v", err)
