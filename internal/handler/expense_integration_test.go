@@ -16,18 +16,7 @@ import (
 )
 
 func TestCreateExpenseIntegration(t *testing.T) {
-	tempDir := t.TempDir()
-
-	filePath := filepath.Join(tempDir, "expenses.db")
-
-	expenseStore, err := store.NewSQLiteStore(filePath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-
-	t.Cleanup(func() {
-		expenseStore.Close()
-	})
+	expenseStore := newExpenseTestStore(t)
 
 	expenseHandler := handler.NewExpenseHandler(expenseStore)
 
@@ -131,116 +120,112 @@ func TestCreateExpenseIntegration(t *testing.T) {
 }
 
 func TestGetExpenseByIDIntegration(t *testing.T) {
-	tempDir := t.TempDir()
-
-	filePath := filepath.Join(tempDir, "expenses.db")
-
-	expenseStore, err := store.NewSQLiteStore(filePath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
+	tests := []struct {
+		name              string
+		param             string
+		existingExpenses  []model.Expense
+		useCreatedExpense bool
+		expectedStatus    int
+	}{
+		{
+			name:           "not found",
+			param:          "999",
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "invalid param",
+			param:          "fafdsa",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "success",
+			existingExpenses: []model.Expense{
+				{
+					Title:    "coffee",
+					Amount:   500,
+					Category: "food",
+				},
+			},
+			useCreatedExpense: true,
+			expectedStatus:    http.StatusOK,
+		},
 	}
 
-	t.Cleanup(func() {
-		expenseStore.Close()
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expenseStore := newExpenseTestStore(t)
 
-	expenseHandler := handler.NewExpenseHandler(expenseStore)
+			expenseHandler := handler.NewExpenseHandler(expenseStore)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /expenses/{id}", expenseHandler.GetExpenseByID)
+			mux := http.NewServeMux()
+			mux.HandleFunc("GET /expenses/{id}", expenseHandler.GetExpenseByID)
 
-	t.Run("not found", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/expenses/999", nil)
-		recorder := httptest.NewRecorder()
+			var createdExpenses []model.Expense
+			for _, e := range tt.existingExpenses {
+				createdExpense, err := expenseStore.CreateExpense(e)
+				if err != nil {
+					t.Fatalf("failed to create expense: %v", err)
+				}
+				createdExpenses = append(createdExpenses, *createdExpense)
+			}
 
-		mux.ServeHTTP(recorder, req)
+			requestParam := tt.param
+			if tt.useCreatedExpense {
+				requestParam = strconv.Itoa(createdExpenses[0].ID)
+			}
 
-		if recorder.Code != http.StatusNotFound {
-			t.Fatalf(
-				"expected %d, got %d",
-				http.StatusNotFound,
-				recorder.Code,
-			)
-		}
-	})
+			recorder := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/expenses/"+requestParam, nil)
 
-	t.Run("invalid param", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/expenses/fadfa", nil)
-		recorder := httptest.NewRecorder()
+			mux.ServeHTTP(recorder, req)
 
-		mux.ServeHTTP(recorder, req)
+			if recorder.Code != tt.expectedStatus {
+				t.Fatalf(
+					"expected %d, got %d",
+					tt.expectedStatus,
+					recorder.Code,
+				)
+			}
 
-		if recorder.Code != http.StatusBadRequest {
-			t.Fatalf(
-				"expected %d, got %d",
-				http.StatusBadRequest,
-				recorder.Code,
-			)
-		}
-	})
+			if recorder.Code == http.StatusOK {
+				var gotExpense model.Expense
+				if err := json.NewDecoder(recorder.Body).Decode(&gotExpense); err != nil {
+					t.Fatalf("failed to get expense by id: %v", err)
+				}
 
-	t.Run("success", func(t *testing.T) {
-		expense := model.Expense{
-			Title:    "coffee",
-			Amount:   500,
-			Category: "food",
-		}
+				if gotExpense.ID != createdExpenses[0].ID {
+					t.Fatalf(
+						"expected %d, got %d",
+						createdExpenses[0].ID,
+						gotExpense.ID,
+					)
+				}
+				if gotExpense.Title != createdExpenses[0].Title {
+					t.Fatalf(
+						"expected %s, got %s",
+						createdExpenses[0].Title,
+						gotExpense.Title,
+					)
+				}
 
-		createdExpense, err := expenseStore.CreateExpense(expense)
-		if err != nil {
-			t.Fatalf("failed to create expense: %v", err)
-		}
+				if gotExpense.Amount != createdExpenses[0].Amount {
+					t.Fatalf(
+						"expected %d, got %d",
+						createdExpenses[0].Amount,
+						gotExpense.Amount,
+					)
+				}
 
-		req := httptest.NewRequest(http.MethodGet, "/expenses/"+strconv.Itoa(createdExpense.ID), nil)
-		recorder := httptest.NewRecorder()
-
-		mux.ServeHTTP(recorder, req)
-
-		if recorder.Code != http.StatusOK {
-			t.Fatalf(
-				"expected %d, got %d",
-				http.StatusOK,
-				recorder.Code,
-			)
-		}
-
-		var gotExpense model.Expense
-		if err := json.NewDecoder(recorder.Body).Decode(&gotExpense); err != nil {
-			t.Fatalf("failed to get expense by id: %v", err)
-		}
-
-		if gotExpense.ID != createdExpense.ID {
-			t.Fatalf(
-				"expected %d, got %d",
-				createdExpense.ID,
-				gotExpense.ID,
-			)
-		}
-
-		if gotExpense.Title != createdExpense.Title {
-			t.Fatalf(
-				"expected %s, got %s",
-				createdExpense.Title,
-				gotExpense.Title,
-			)
-		}
-
-		if gotExpense.Amount != createdExpense.Amount {
-			t.Fatalf(
-				"expected %d, got %d",
-				createdExpense.Amount,
-				gotExpense.Amount,
-			)
-		}
-
-		if gotExpense.Category != createdExpense.Category {
-			t.Fatalf(
-				"expected %s, got %s",
-				createdExpense.Category,
-				gotExpense.Category,
-			)
-		}
-	})
+				if gotExpense.Category != createdExpenses[0].Category {
+					t.Fatalf(
+						"expected %s, got %s",
+						createdExpenses[0].Category,
+						gotExpense.Category,
+					)
+				}
+			}
+		})
+	}
 }
 
 func TestDeleteExpenseByIDIntegration(t *testing.T) {
@@ -336,8 +321,8 @@ func TestUpdateExpenseIntegration(t *testing.T) {
 
 		// update in http
 		pendingUpdateExpense := model.Expense{
-			Title: "latte",
-			Amount: 550,
+			Title:    "latte",
+			Amount:   550,
 			Category: "food",
 		}
 
@@ -347,7 +332,7 @@ func TestUpdateExpenseIntegration(t *testing.T) {
 		}
 
 		pendingUpdateExpenseReader := bytes.NewReader(pendingUpdateExpenseBody)
-		updateReq := httptest.NewRequest(http.MethodPut, "/expenses/" + strconv.Itoa(createdExpense.ID), pendingUpdateExpenseReader)
+		updateReq := httptest.NewRequest(http.MethodPut, "/expenses/"+strconv.Itoa(createdExpense.ID), pendingUpdateExpenseReader)
 		updateRecorder := httptest.NewRecorder()
 		mux.ServeHTTP(updateRecorder, updateReq)
 
