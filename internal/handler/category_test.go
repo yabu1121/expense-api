@@ -30,6 +30,19 @@ func (f *fakeCategoryStore) CreateCategory(category model.Category) (*model.Cate
 	return &category, nil
 }
 
+func (f *fakeCategoryStore) GetCategoryByID(id uuid.UUID) (*model.Category, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	for i := range f.categories {
+		if f.categories[i].ID == id {
+			return &f.categories[i], nil
+		}
+	}
+	return nil, model.ErrCategoryNotFound
+}
+
 func TestListCategories(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -184,6 +197,91 @@ func TestCreateCategory(t *testing.T) {
 
 			if res.ID == uuid.Nil() {
 				t.Fatal("expected category ID to be generated")
+			}
+		})
+	}
+}
+
+func TestGetCategoryByID(t *testing.T) {
+	tests := []struct {
+		name           string
+		id             string
+		store          *fakeCategoryStore
+		wantCategory   model.Category
+		expectedStatus int
+	}{
+		{
+			name: "success",
+			id:   uuid.Max().String(),
+			store: &fakeCategoryStore{
+				categories: []model.Category{
+					{
+						ID:   uuid.Max(),
+						Name: "food",
+					},
+				},
+			},
+			wantCategory: model.Category{
+				ID:   uuid.Max(),
+				Name: "food",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "invalid uuid",
+			id:   "invalid-uuid-dayo",
+			store: &fakeCategoryStore{
+				categories: []model.Category{
+					{
+						Name: "food",
+					},
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "not found",
+			id:             uuid.Max().String(),
+			store:          &fakeCategoryStore{},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name: "store error",
+			id:   uuid.Max().String(),
+			store: &fakeCategoryStore{
+				err: errors.New("store error"),
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewCategoryHandler(tt.store)
+
+			req := httptest.NewRequest(http.MethodGet, "/categories/"+tt.id, nil)
+			req.SetPathValue("id", (tt.id))
+			recorder := httptest.NewRecorder()
+
+			handler.GetCategoryByID(recorder, req)
+
+			if recorder.Code != tt.expectedStatus {
+				t.Fatalf(
+					"expected status to %d, got %d",
+					tt.expectedStatus,
+					recorder.Code,
+				)
+			}
+
+			if tt.expectedStatus == http.StatusOK {
+				var category model.Category
+				if err := json.NewDecoder(recorder.Body).Decode(&category); err != nil {
+					t.Fatalf("failed to decode response: %v", err)
+				}
+
+				if category != tt.wantCategory {
+					t.Fatalf("category is not unmathced")
+				}
 			}
 		})
 	}

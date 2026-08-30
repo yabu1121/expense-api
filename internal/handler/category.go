@@ -5,12 +5,14 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"uuid"
 
 	"github.com/yabu1121/expense-api/internal/model"
 )
 
 type CategoryStore interface {
 	ListCategories() ([]model.Category, error)
+	GetCategoryByID(id uuid.UUID) (*model.Category, error)
 	CreateCategory(category model.Category) (*model.Category, error)
 }
 
@@ -87,6 +89,43 @@ func (h *CategoryHandler) CreateCategory(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusCreated)
 
 	if err := json.NewEncoder(w).Encode(createdCategory); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
+}
+
+func (h *CategoryHandler) GetCategoryByID(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	categoryID, err := uuid.Parse(id)
+	if err != nil {
+		http.Error(
+			w,
+			"failed to parse uuid",
+			http.StatusBadRequest,
+		)
+		return
+	}
+	category, err := h.store.GetCategoryByID(categoryID)
+	if err != nil {
+		if errors.Is(err, model.ErrCategoryNotFound) {
+			http.Error(
+				w,
+				err.Error(),
+				http.StatusNotFound,
+			)
+			return
+		}
+		http.Error(
+			w,
+			"failed to get category by id",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(category); err != nil {
 		log.Printf("failed to encode response: %v", err)
 	}
 }

@@ -43,7 +43,7 @@ func main() {
 
 	mux.HandleFunc("GET /categories", categoryHandler.ListCategories)
 	mux.HandleFunc("POST /categories", categoryHandler.CreateCategory)
-
+	mux.HandleFunc("GET /categories/{id}", categoryHandler.GetCategoryByID)
 
 	server := &http.Server{
 		Addr:    ":8080",

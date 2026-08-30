@@ -598,3 +598,55 @@ func TestListCategories(t *testing.T) {
 		})
 	}
 }
+
+func TestGetCategoryByID(t *testing.T) {
+
+	tests := []struct {
+		name         string
+		categoryName string
+		wantErr      error
+	}{
+		{
+			name:         "success",
+			categoryName: "food",
+		},
+		{
+			name:    "not found",
+			wantErr: model.ErrCategoryNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			categoryStore := newCategoryTestStore(t)
+
+			createdCategory, err := categoryStore.CreateCategory(model.Category{
+				Name: tt.categoryName,
+			})
+			if err != nil {
+				t.Fatalf("failed to create category: %v", err)
+			}
+
+			if tt.wantErr != nil {
+				got, err := categoryStore.GetCategoryByID(uuid.New())
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("expected %v: %v", tt.wantErr, err)
+				}
+
+				if got != nil {
+					t.Fatalf("expected nil expense, got: %+v", got)
+				}
+			} else {
+				got, err := categoryStore.GetCategoryByID(createdCategory.ID)
+				if err != nil {
+					t.Fatalf("failed to get category by id: %v", err)
+				}
+
+				if *got != *createdCategory {
+					t.Fatalf("got and wantCategory is unmatched")
+				}
+			}
+		})
+	}
+
+}

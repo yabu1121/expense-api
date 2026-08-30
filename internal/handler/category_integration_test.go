@@ -99,3 +99,94 @@ func TestCreateCategoryIntegration(t *testing.T) {
 		})
 	}
 }
+
+func TestGetCategoryByIDIntegration(t *testing.T) {
+	tests := []struct {
+		name               string
+		existingCategories []model.Category
+		param              string
+		expectedStatus     int
+	}{
+		{
+			name: "success",
+			existingCategories: []model.Category{
+				{
+					Name: "food",
+				},
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:  "invalid uuid",
+			param: "u-u-id",
+			existingCategories: []model.Category{
+				{
+					Name: "food",
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:  "not found",
+			param: uuid.NewV4().String(),
+			existingCategories: []model.Category{
+				{
+					Name: "food",
+				},
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			categoryStore := newCategoryTestStore(t)
+
+			categoryHandler := handler.NewCategoryHandler(categoryStore)
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("GET /categories/{id}", categoryHandler.GetCategoryByID)
+
+			var createdCategories []model.Category
+			for _, c := range tt.existingCategories {
+				createdCategory, err := categoryStore.CreateCategory(c)
+				if err != nil {
+					t.Fatalf("failed to create category to the store: %v", err)
+				}
+				createdCategories = append(createdCategories, *createdCategory)
+			}
+
+			requestParam := tt.param
+			if requestParam == "" {
+				requestParam = createdCategories[len(createdCategories)-1].ID.String()
+			}
+
+			recorder := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/categories/"+requestParam, nil)
+
+			mux.ServeHTTP(recorder, req)
+
+			if recorder.Code != tt.expectedStatus {
+				t.Fatalf(
+					"expected %d, got %d",
+					tt.expectedStatus,
+					recorder.Code,
+				)
+			}
+
+			if recorder.Code == http.StatusOK {
+				var got model.Category
+				if err := json.NewDecoder(recorder.Body).Decode(&got); err != nil {
+					t.Fatalf("failed to decode category: %v", err)
+				}
+
+				if got != createdCategories[len(createdCategories)-1] {
+					t.Fatalf(
+						"expected %+v, got %+v",
+						createdCategories[len(createdCategories)-1],
+						got,
+					)
+				}
+			}
+		})
+	}
+}

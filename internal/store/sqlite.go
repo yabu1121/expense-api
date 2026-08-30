@@ -275,3 +275,25 @@ func (s *SQLiteStore) ListCategories() ([]model.Category, error) {
 
 	return categories, nil
 }
+
+func (s *SQLiteStore) GetCategoryByID(id uuid.UUID) (*model.Category, error) {
+	row := s.db.QueryRow(`
+		select id, name
+		from categories
+		where id = ?
+	`, id)
+
+	var category model.Category
+	err := row.Scan(
+		&category.ID,
+		&category.Name,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrCategoryNotFound
+		}
+		return nil, err
+	}
+
+	return &category, nil
+}
