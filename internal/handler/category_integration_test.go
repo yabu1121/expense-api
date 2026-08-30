@@ -16,12 +16,12 @@ func TestCreateCategoryIntegration(t *testing.T) {
 	tests := []struct {
 		name               string
 		existingCategories []model.Category
-		category           model.Category
+		category           handler.CreateCategoryRequest
 		expectedStatus     int
 	}{
 		{
 			name: "success",
-			category: model.Category{
+			category: handler.CreateCategoryRequest{
 				Name: "food",
 			},
 			expectedStatus: http.StatusCreated,
@@ -33,7 +33,7 @@ func TestCreateCategoryIntegration(t *testing.T) {
 					Name: "food",
 				},
 			},
-			category: model.Category{
+			category: handler.CreateCategoryRequest{
 				Name: "food",
 			},
 			expectedStatus: http.StatusConflict,

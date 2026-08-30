@@ -16,6 +16,10 @@ type CategoryStore interface {
 	CreateCategory(category model.Category) (*model.Category, error)
 }
 
+type CreateCategoryRequest struct {
+	Name string `json:"name"`
+}
+
 type CategoryHandler struct {
 	store CategoryStore
 }
@@ -46,15 +50,21 @@ func (h *CategoryHandler) ListCategories(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *CategoryHandler) CreateCategory(w http.ResponseWriter, r *http.Request) {
-	var category model.Category
+	var categoryRequest CreateCategoryRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&category); err != nil {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&categoryRequest); err != nil {
 		http.Error(
 			w,
 			"failed to decode request body",
 			http.StatusBadRequest,
 		)
 		return
+	}
+
+	category := model.Category{
+		Name: categoryRequest.Name,
 	}
 
 	category.Normalize()

@@ -102,7 +102,7 @@ func TestListCategories(t *testing.T) {
 }
 
 func TestCreateCategory(t *testing.T) {
-	validCategory := model.Category{
+	validCategory := CreateCategoryRequest{
 		Name: "food",
 	}
 	validBody, err := json.Marshal(validCategory)
@@ -112,13 +112,17 @@ func TestCreateCategory(t *testing.T) {
 
 	invalidBody := []byte(`{"name": "food"`)
 
-	spaceOnlyCategory := model.Category{
+	spaceOnlyCategory := CreateCategoryRequest{
 		Name: " ",
 	}
 	spaceOnlyBody, err := json.Marshal(spaceOnlyCategory)
 	if err != nil {
 		t.Fatalf("failed to marshal space only category: %v", err)
 	}
+
+	unknownFieldBody := []byte(
+		`{"id":"01900000-0000-7000-8000-000000000000","name":"food"}`,
+	)
 
 	tests := []struct {
 		name           string
@@ -159,6 +163,12 @@ func TestCreateCategory(t *testing.T) {
 				err: model.ErrCategoryAlreadyExists,
 			},
 			expectedStatus: http.StatusConflict,
+		},
+		{
+			name:           "unknown field",
+			body:           unknownFieldBody,
+			store:          &fakeCategoryStore{},
+			expectedStatus: http.StatusBadRequest,
 		},
 	}
 
