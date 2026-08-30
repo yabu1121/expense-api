@@ -15,7 +15,8 @@ type SQLiteStore struct {
 }
 
 func NewSQLiteStore(filePath string) (*SQLiteStore, error) {
-	db, err := sql.Open("sqlite", filePath)
+	dsn := filePath + "?_pragma=foreign_keys(1)"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -37,6 +38,17 @@ func NewSQLiteStore(filePath string) (*SQLiteStore, error) {
 		db.Close()
 		return nil, err
 	}
+
+	if err := sqliteStore.createTagTable(); err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	if err := sqliteStore.createExpenseTagTable(); err != nil {
+		db.Close()
+		return nil, err
+	}
+
 	return sqliteStore, nil
 }
 
@@ -66,6 +78,46 @@ func (s *SQLiteStore) createExpenseTable() error {
 			category TEXT
 		)`,
 	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *SQLiteStore) createTagTable() error {
+	_, err := s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS tags (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE
+		)
+	`)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *SQLiteStore) createExpenseTagTable() error {
+	_, err := s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS expense_tags (
+			expense_id INTEGER NOT NULL,
+			tag_id TEXT NOT NULL,
+
+			PRIMARY KEY (expense_id, tag_id),
+			FOREIGN KEY (expense_id) REFERENCES expenses(id),
+			FOREIGN KEY (tag_id) REFERENCES tags(id)
+		)
+	`)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *SQLiteStore) AddTagToExpense(expenseID int, tagID uuid.UUID) error {
+	_, err := s.db.Exec(`
+		insert into expense_tags (expense_id, tag_id) values (?, ?)
+	`, expenseID, tagID.String())
 	if err != nil {
 		return err
 	}
@@ -227,8 +279,7 @@ func (s *SQLiteStore) CreateCategory(category model.Category) (*model.Category, 
 	category.ID = uuid.NewV7()
 
 	_, err := s.db.Exec(`
-	insert into categories (id, name)
-		values (?, ?)
+	insert into categories (id, name) values (?, ?)
 	`, category.ID.String(), category.Name)
 
 	if err != nil {
@@ -296,4 +347,54 @@ func (s *SQLiteStore) GetCategoryByID(id uuid.UUID) (*model.Category, error) {
 	}
 
 	return &category, nil
+}
+
+func (s *SQLiteStore) ListTags() ([]model.Tag, error) {
+	rows, err := s.db.Query(`
+		select id, name
+		from tags
+		order by name asc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	tags := make([]model.Tag, 0)
+
+	var tag model.Tag
+
+	for rows.Next() {
+		err := rows.Scan(
+			&tag.ID,
+			&tag.Name,
+		)
+		if err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return tags, nil
+}
+
+func (s *SQLiteStore) CreateTag(tag model.Tag) (*model.Tag, error) {
+	tag.ID = uuid.NewV7()
+
+	_, err := s.db.Exec(`
+		insert into tags (id, name) values (?, ?)
+	`, tag.ID.String(), tag.Name)
+
+	if err != nil {
+		var sqlErr sqlite.Error
+		if errors.Is(err, &sqlErr) {
+			if sqlErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
+				return nil, model.ErrTagAlreadyExists
+			}
+		}
+		return nil, err
+	}
+	return &tag, nil
 }

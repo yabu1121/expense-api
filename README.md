@@ -31,7 +31,7 @@ SQLite
 - Store：`database/sql`とSQLiteによるデータ操作
 - Model：Expense、集計結果、validation、検索条件
 
-Handler側に小さなStore interfaceを置き、テストではFake Storeを注入します。
+Handler側に小さなStore interfaceを置き、テストではFake Storeを注入します。CategoryとTagの作成ではRequest DTOを使い、HTTP入力とDomain Modelを分離しています。
 
 ## ディレクトリ構成
 
@@ -60,6 +60,12 @@ Handler側に小さなStore interfaceを置き、テストではFake Storeを注
 | PUT | `/expenses/{id}` | 支出の更新 |
 | DELETE | `/expenses/{id}` | 支出の削除 |
 | GET | `/expenses/summary` | 件数と合計金額の取得 |
+| GET | `/categories` | カテゴリ一覧 |
+| GET | `/categories/{id}` | カテゴリの1件取得 |
+| POST | `/categories` | カテゴリの作成 |
+| GET | `/tags` | タグ一覧 |
+| POST | `/tags` | タグの作成 |
+| POST | `/expenses/{expenseID}/tags/{tagID}` | 支出へタグを関連付け |
 
 ### 支出一覧の検索条件
 
@@ -142,6 +148,50 @@ curl -i -X DELETE http://localhost:8080/expenses/1
 
 集計SQLでは`COUNT`、`SUM`、`COALESCE`を使用し、Expenseが0件の場合も合計金額を`0`として返します。
 
+### Category API
+
+カテゴリ作成：
+
+```bash
+curl -i -X POST http://localhost:8080/categories \
+  -H "Content-Type: application/json" \
+  -d '{"name":"food"}'
+```
+
+一覧・1件取得：
+
+```bash
+curl -i http://localhost:8080/categories
+curl -i http://localhost:8080/categories/{categoryID}
+```
+
+作成リクエストは`name`だけを受け付けます。未知のJSONフィールドは`400 Bad Request`、同名カテゴリは`409 Conflict`になります。
+
+### Tag API
+
+タグ作成・一覧：
+
+```bash
+curl -i -X POST http://localhost:8080/tags \
+  -H "Content-Type: application/json" \
+  -d '{"name":"outside"}'
+
+curl -i http://localhost:8080/tags
+```
+
+タグ名は前後の空白を除去して小文字へ正規化されます。同名タグは`409 Conflict`になります。
+
+### ExpenseとTagの関連付け
+
+既存のExpenseとTagを関連付けます。リクエストボディは不要です。
+
+```bash
+curl -i -X POST \
+  http://localhost:8080/expenses/{expenseID}/tags/{tagID}
+```
+
+成功時は`204 No Content`を返します。`expense_tags`中間テーブルの複合主キーにより、同じExpenseとTagの組み合わせは重複保存できません。現時点では、存在しないIDと重複関連付けのDBエラーはいずれも`500 Internal Server Error`として返します。
+
 ## データベース
 
 アプリケーション起動時に`CREATE TABLE IF NOT EXISTS`を実行し、テーブルがなければ自動作成します。現時点では独立したmigrationツールは使用していません。
@@ -154,6 +204,25 @@ CREATE TABLE IF NOT EXISTS expenses (
     category TEXT
 );
 ```
+
+TagとExpenseの多対多関係には中間テーブルを使用します。
+
+```sql
+CREATE TABLE IF NOT EXISTS tags (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS expense_tags (
+    expense_id INTEGER NOT NULL,
+    tag_id TEXT NOT NULL,
+    PRIMARY KEY (expense_id, tag_id),
+    FOREIGN KEY (expense_id) REFERENCES expenses(id),
+    FOREIGN KEY (tag_id) REFERENCES tags(id)
+);
+```
+
+SQLite接続では外部キー検証を有効化し、存在しないExpenseやTagへの関連付けをDB側でも防ぎます。
 
 一覧取得では`ExpenseFilter`を使い、指定された条件だけをSQLへ追加します。
 
@@ -173,6 +242,8 @@ Offsetあり   → OFFSET ?
 | Invalid ID | 400 |
 | Invalid filter | 400 |
 | Expense Not Found | 404 |
+| Category Not Found | 404 |
+| Category / Tag Already Exists | 409 |
 | Method Not Allowed | 405 |
 | Internal Error | 500 |
 
@@ -250,6 +321,9 @@ curl -i http://localhost:8080/expenses
 - `Query` / `QueryRow` / `Exec`
 - `LastInsertId` / `RowsAffected` / `sql.ErrNoRows`
 - SQL集計と動的な検索条件
+- UUID v7によるCategory・TagのID生成
+- Request DTOと未知フィールドの拒否
+- 多対多の中間テーブル、複合主キー、外部キー
 - interfaceと依存性注入
 - Unit Test / Integration Test
 - Dockerのマルチステージビルド
@@ -261,7 +335,12 @@ curl -i http://localhost:8080/expenses
 - カテゴリ絞り込み：実装済み
 - limit・offset：実装済み
 - Summary API：実装済み
-- Handler / Store / Integrationテスト：実装済み
+- Category作成・一覧・1件取得：実装済み
+- Tag作成・一覧：実装済み
+- ExpenseへのTag関連付け：実装済み
+- Expenseに関連するTagの取得・解除：未実装
+- Expense・CategoryのHandler / Store / Integrationテスト：実装済み
+- Tag・ExpenseTagの自動テスト：未実装
 - Docker ComposeとSQLite永続化：実装済み
 - Graceful shutdown：未完成
 
@@ -270,6 +349,8 @@ Graceful shutdownは今後の課題です。現在はHTTPサーバーをgoroutin
 ## Future Work
 
 - Graceful shutdown
+- Expenseに関連するTagの取得・解除
+- Tag関連付けエラーの404・409への変換
 - PostgreSQL対応
 - GitHub Actions
 - Kubernetes

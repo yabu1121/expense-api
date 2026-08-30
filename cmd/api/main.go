@@ -27,6 +27,8 @@ func main() {
 	expenseHandler := handler.NewExpenseHandler(store)
 	expenseSummaryHandler := handler.NewExpenseSummaryHandler(store)
 	categoryHandler := handler.NewCategoryHandler(store)
+	tagHandler := handler.NewTagHandler(store)
+	expenseTagHandler := handler.NewExpenseTagHandler(store)
 
 	mux := http.NewServeMux()
 
@@ -44,6 +46,11 @@ func main() {
 	mux.HandleFunc("GET /categories", categoryHandler.ListCategories)
 	mux.HandleFunc("POST /categories", categoryHandler.CreateCategory)
 	mux.HandleFunc("GET /categories/{id}", categoryHandler.GetCategoryByID)
+
+	mux.HandleFunc("GET /tags", tagHandler.ListTags)
+	mux.HandleFunc("POST /tags", tagHandler.CreateTag)
+
+	mux.HandleFunc("POST /expenses/{expenseID}/tags/{tagID}", expenseTagHandler.AddTagToExpense)
 
 	server := &http.Server{
 		Addr:    ":8080",
