@@ -183,6 +183,7 @@ func TestGetExpenseByID(t *testing.T) {
 		id             string
 		name           string
 		store          *fakeExpenseStore
+		wantExpense    model.Expense
 		expectedStatus int
 	}{
 		{
@@ -196,7 +197,19 @@ func TestGetExpenseByID(t *testing.T) {
 						Amount:   500,
 						Category: "food",
 					},
+					{
+						ID:       2,
+						Title:    "latte",
+						Amount:   550,
+						Category: "food",
+					},
 				},
+			},
+			wantExpense: model.Expense{
+				ID:       1,
+				Title:    "coffee",
+				Amount:   500,
+				Category: "food",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -254,33 +267,8 @@ func TestGetExpenseByID(t *testing.T) {
 					t.Fatalf("failed to decode response: %v", err)
 				}
 
-				if expense.ID != 1 {
-					t.Fatalf(
-						"expected id %d, got %d",
-						1,
-						expense.ID,
-					)
-				}
-				if expense.Title != "coffee" {
-					t.Fatalf(
-						"expected title %v, got %v",
-						"coffee",
-						expense.Title,
-					)
-				}
-				if expense.Amount != 500 {
-					t.Fatalf(
-						"expected amount %d, got %d",
-						500,
-						expense.Amount,
-					)
-				}
-				if expense.Category != "food" {
-					t.Fatalf(
-						"expected category %v, got %v",
-						"food",
-						expense.Category,
-					)
+				if expense != tt.wantExpense {
+					t.Fatalf("want expense is not matched")
 				}
 			}
 		})

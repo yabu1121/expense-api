@@ -51,66 +51,67 @@ func TestCreateExpense(t *testing.T) {
 func TestGetExpenseByID(t *testing.T) {
 	expenseStore := newExpenseTestStore(t)
 
-	t.Run("success", func(t *testing.T) {
-		expense := model.Expense{
-			Title:    "coffee",
-			Amount:   500,
-			Category: "food",
-		}
+	tests := []struct {
+		name             string
+		existingExpenses []model.Expense
+		id               int
+		wantExpense      model.Expense
+		wantErr          error
+	}{
+		{
+			name: "success",
+			existingExpenses: []model.Expense{
+				{
+					ID:       1,
+					Title:    "coffee",
+					Amount:   500,
+					Category: "food",
+				},
+			},
+			id: 1,
+			wantExpense: model.Expense{
+				ID:       1,
+				Title:    "coffee",
+				Amount:   500,
+				Category: "food",
+			},
+		},
+		{
+			name:    "not found",
+			wantErr: model.ErrExpenseNotFound,
+		},
+	}
 
-		_, err := expenseStore.CreateExpense(expense)
-		if err != nil {
-			t.Fatalf("failed to create expense: %v", err)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, e := range tt.existingExpenses {
+				_, err := expenseStore.CreateExpense(e)
+				if err != nil {
+					t.Fatalf("failed to create expense: %v", err)
+				}
+			}
 
-		got, err := expenseStore.GetExpenseByID(1)
-		if err != nil {
-			t.Fatalf("failed to get expense by id: %v", err)
-		}
+			if tt.wantErr == nil {
+				got, err := expenseStore.GetExpenseByID(tt.id)
+				if err != nil {
+					t.Fatalf("failed to get expense by id: %v", err)
+				}
 
-		if got.ID != 1 {
-			t.Fatalf(
-				"expected expense ID %d, got %d",
-				1,
-				got.ID,
-			)
-		}
+				if *got != tt.wantExpense {
+					t.Fatalf("expected got == wantExpense. but didn't.")
+				}
+			} else {
+				got, err := expenseStore.GetExpenseByID(tt.id)
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("expected %v: %v", tt.wantErr, err)
+				}
 
-		if got.Title != "coffee" {
-			t.Fatalf(
-				"expected expense title %s, got %s",
-				"coffee",
-				got.Title,
-			)
-		}
-
-		if got.Amount != 500 {
-			t.Fatalf(
-				"expected expense amount %d, got %d",
-				500,
-				got.Amount,
-			)
-		}
-
-		if got.Category != "food" {
-			t.Fatalf(
-				"expected expense category %s, got %s",
-				"food",
-				got.Category,
-			)
-		}
-	})
-
-	t.Run("not found", func(t *testing.T) {
-		got, err := expenseStore.GetExpenseByID(999)
-		if !errors.Is(err, model.ErrExpenseNotFound) {
-			t.Fatalf("expected model.ErrExpenseNotFuond: %v", err)
-		}
-
-		if got != nil {
-			t.Fatalf("expected nil expense, got: %+v", got)
-		}
-	})
+				if got != nil {
+					t.Fatalf("expected nil expense, got: %+v", got)
+				}
+			}
+		})
+	}
 }
 
 func TestListExpenses(t *testing.T) {
