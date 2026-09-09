@@ -3,175 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Expense API</title>
-  <link rel="stylesheet" href="/sandbox/styles.css">
+  <title>Expense API Swagger UI</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+  <link rel="stylesheet" href="/sandbox/swagger.css">
 </head>
 <body>
-  <main>
-    <header>
-      <div>
-        <h1>Expense API</h1>
-        <p>簡易エンドポイント確認フォーム</p>
-      </div>
-      <span id="status">未接続</span>
-    </header>
-
-    <section>
-      <h2>GET</h2>
-      <div class="actions">
-        <button data-get="/health">health</button>
-        <button data-get="/version">version</button>
-        <button data-get="/expenses">expenses</button>
-        <button data-get="/expenses/summary">summary</button>
-        <button data-get="/categories">categories</button>
-        <button data-get="/tags">tags</button>
-      </div>
-    </section>
-
-    <section>
-      <h2>Expense</h2>
-      <form id="expense-create" class="line">
-        <code>POST /expenses</code>
-        <input name="title" value="coffee" aria-label="title" placeholder="title" required>
-        <input name="amount" type="number" value="500" min="1" aria-label="amount" placeholder="amount" required>
-        <input name="categoryID" aria-label="category UUID" placeholder="category UUID" required>
-        <button>POST</button>
-      </form>
-
-      <form id="expense-id" class="line">
-        <code>GET/DELETE /expenses/{id}</code>
-        <input name="id" aria-label="expense UUID" placeholder="expense UUID" required>
-        <button name="action" value="GET">GET</button>
-        <button name="action" value="DELETE" class="danger">DELETE</button>
-      </form>
-
-      <form id="expense-update" class="line">
-        <code>PUT /expenses/{id}</code>
-        <input name="id" aria-label="expense UUID" placeholder="expense UUID" required>
-        <input name="title" value="latte" aria-label="title" placeholder="title" required>
-        <input name="amount" type="number" value="550" min="1" aria-label="amount" placeholder="amount" required>
-        <input name="categoryID" aria-label="category UUID" placeholder="category UUID" required>
-        <button>PUT</button>
-      </form>
-
-    </section>
-
-    <section>
-      <h2>Category</h2>
-      <form id="category-create" class="line">
-        <code>POST /categories</code>
-        <input name="name" value="food" aria-label="category name" placeholder="name" required>
-        <button>POST</button>
-      </form>
-      <form id="category-get" class="line">
-        <code>GET /categories/{id}</code>
-        <input name="id" aria-label="category uuid" placeholder="category UUID" required>
-        <button>GET</button>
-      </form>
-    </section>
-
-    <section>
-      <h2>Tag</h2>
-      <form id="tag-create" class="line">
-        <code>POST /tags</code>
-        <input name="name" value="outside" aria-label="tag name" placeholder="name" required>
-        <button>POST</button>
-      </form>
-      <form id="expense-tag" class="line">
-        <code>POST /expenses/{expenseID}/tags/{tagID}</code>
-        <input name="expenseID" aria-label="expense UUID" placeholder="expense UUID" required>
-        <input name="tagID" aria-label="tag uuid" placeholder="tag UUID" required>
-        <button>LINK</button>
-      </form>
-    </section>
-
-    <section>
-      <div class="response-title">
-        <h2>Response</h2>
-        <code id="request">-</code>
-      </div>
-      <pre id="output">Waiting...</pre>
-    </section>
-  </main>
-
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
   <script>
-    const output = document.querySelector('#output');
-    const requestView = document.querySelector('#request');
-    const statusView = document.querySelector('#status');
-
-    async function call(method, path, body) {
-      requestView.textContent = `${method} ${path}`;
-      output.textContent = 'Loading...';
-      const options = { method, headers: {} };
-      if (body !== undefined) {
-        options.headers['Content-Type'] = 'application/json';
-        options.body = JSON.stringify(body);
-      }
-
-      try {
-        const response = await fetch(path, options);
-        const text = await response.text();
-        let responseBody = text;
-        try { responseBody = text ? JSON.parse(text) : null; } catch (_) {}
-        output.textContent = JSON.stringify({ status: response.status, body: responseBody }, null, 2);
-        statusView.textContent = response.ok ? '接続済み' : `HTTP ${response.status}`;
-        statusView.className = response.ok ? 'ok' : 'ng';
-      } catch (error) {
-        output.textContent = error.message;
-        statusView.textContent = '接続失敗';
-        statusView.className = 'ng';
-      }
-    }
-
-    const formData = (form) => new FormData(form);
-
-    document.querySelectorAll('[data-get]').forEach((button) => {
-      button.onclick = () => call('GET', button.dataset.get);
-    });
-
-    document.querySelector('#expense-create').onsubmit = (event) => {
-      event.preventDefault();
-      const data = formData(event.currentTarget);
-      call('POST', '/expenses', { title: data.get('title'), amount: Number(data.get('amount')), category_id: data.get('categoryID') });
+    window.onload = () => {
+      SwaggerUIBundle({
+        url: "/sandbox/openapi.yaml",
+        dom_id: "#swagger-ui",
+        deepLinking: true,
+        displayRequestDuration: true,
+        persistAuthorization: true
+      });
     };
-
-    document.querySelector('#expense-id').onsubmit = (event) => {
-      event.preventDefault();
-      const data = formData(event.currentTarget);
-      call(event.submitter.value, `/expenses/${data.get('id')}`);
-    };
-
-    document.querySelector('#expense-update').onsubmit = (event) => {
-      event.preventDefault();
-      const data = formData(event.currentTarget);
-      call('PUT', `/expenses/${data.get('id')}`, { title: data.get('title'), amount: Number(data.get('amount')), category_id: data.get('categoryID') });
-    };
-
-    document.querySelector('#category-create').onsubmit = (event) => {
-      event.preventDefault();
-      const data = formData(event.currentTarget);
-      call('POST', '/categories', { name: data.get('name') });
-    };
-
-    document.querySelector('#category-get').onsubmit = (event) => {
-      event.preventDefault();
-      const data = formData(event.currentTarget);
-      call('GET', `/categories/${encodeURIComponent(data.get('id'))}`);
-    };
-
-    document.querySelector('#tag-create').onsubmit = (event) => {
-      event.preventDefault();
-      const data = formData(event.currentTarget);
-      call('POST', '/tags', { name: data.get('name') });
-    };
-
-    document.querySelector('#expense-tag').onsubmit = (event) => {
-      event.preventDefault();
-      const data = formData(event.currentTarget);
-      call('POST', `/expenses/${data.get('expenseID')}/tags/${encodeURIComponent(data.get('tagID'))}`);
-    };
-
-    call('GET', '/health');
   </script>
 </body>
 </html>

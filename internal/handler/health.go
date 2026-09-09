@@ -29,6 +29,7 @@ func HealthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func VersionHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	if _, err := w.Write([]byte("v1.0.0")); err != nil {
 		log.Println(err)
 		return

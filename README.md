@@ -43,7 +43,7 @@ Handlerは具体的なSQLiteStoreではなく、小さなStore interfaceへ依�
 ├── internal/handler/        # HTTP HandlerとHandlerテスト
 ├── internal/model/          # Model、Request、validation、エラー
 ├── internal/store/          # SQLite実装とStoreテスト
-├── sandbox/                 # APIを手動確認する簡易HTML
+├── sandbox/                 # OpenAPI定義とSwagger UI
 ├── Dockerfile
 └── docker-compose.yml
 ```
@@ -66,7 +66,9 @@ Handlerは具体的なSQLiteStoreではなく、小さなStore interfaceへ依�
 | GET | `/tags` | タグ一覧 |
 | POST | `/tags` | タグ作成 |
 | POST | `/expenses/{expenseID}/tags/{tagID}` | 支出とタグの関連付け |
-| GET | `/sandbox/` | 簡易確認フォーム |
+| GET | `/docs` | Swagger UIへリダイレクト |
+| GET | `/sandbox/` | Swagger UI |
+| GET | `/sandbox/openapi.yaml` | OpenAPI定義 |
 
 ## Expense API
 
@@ -189,6 +191,8 @@ SQLiteパスは`DB_PATH`で変更できます。未指定時は`expenses.db`で�
 DB_PATH=./expenses-dev.db go run ./cmd/api
 ```
 
+起動後、[http://localhost:8080/docs](http://localhost:8080/docs)を開くとSwagger UIから全エンドポイントの仕様確認とリクエスト実行ができます。Swagger UI本体はCDNから読み込むため、初回表示にはインターネット接続が必要です。
+
 ## Docker Compose
 
 ```bash
@@ -205,7 +209,9 @@ SQLiteは`expense-data` volumeへ保存されます。`docker compose down`だ�
 - JSON Encode / DecodeとRequest型
 - NormalizeとValidate
 - `Query` / `QueryRow` / `Exec`
-- `RETURNING` / `RowsAffected` / `sql.ErrNoRows`
+- `LastInsertId` / `RETURNING` / `RowsAffected` / `sql.ErrNoRows`
+- `COUNT` / `SUM` / `COALESCE`によるSQL集計
+- 条件に応じたSQLとプレースホルダー引数の組み立て
 - UUID v7の生成、URL文字列の`uuid.Parse`、nil UUIDの検証
 - Category外部キーとExpense・Tagの多対多中間テーブル
 - Handler側interfaceによる依存性注入
@@ -214,6 +220,7 @@ SQLiteは`expense-data` volumeへ保存されます。`docker compose down`だ�
 - SQLite Store Testとビルドタグ付きIntegration Test
 - `go test -run`が実行対象だけを絞り、パッケージ全体はコンパイルすること
 - DockerマルチステージビルドとSQLite volume
+- OpenAPI 3.0によるAPI仕様記述とSwagger UI
 
 ## 現在の状況と次の課題
 

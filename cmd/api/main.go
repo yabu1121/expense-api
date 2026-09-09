@@ -53,6 +53,9 @@ func main() {
 	mux.HandleFunc("POST /expenses/{expenseID}/tags/{tagID}", expenseTagHandler.AddTagToExpense)
 
 	mux.Handle("GET /sandbox/", http.StripPrefix("/sandbox/", http.FileServer(http.Dir("sandbox"))))
+	mux.HandleFunc("GET /docs", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/sandbox/", http.StatusTemporaryRedirect)
+	})
 
 	server := &http.Server{
 		Addr:    ":8080",
