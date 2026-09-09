@@ -59,8 +59,10 @@ func (s *SQLiteStore) Close() error {
 func (s *SQLiteStore) createCategoryTable() error {
 	_, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS categories (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL UNIQUE
+			id TEXT NOT NULL,
+			name TEXT NOT NULL UNIQUE,
+
+			PRIMARY KEY (id)
 		)
 	`)
 	if err != nil {
@@ -72,10 +74,14 @@ func (s *SQLiteStore) createCategoryTable() error {
 func (s *SQLiteStore) createExpenseTable() error {
 	_, err := s.db.Exec(
 		`CREATE TABLE IF NOT EXISTS expenses (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id TEXT NOT NULL,
 			title TEXT NOT NULL,
-			amount INTEGER,
-			category TEXT
+			amount INTEGER NOT NULL,
+			category_id TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+			PRIMARY KEY (id),
+			FOREIGN KEY (category_id) REFERENCES categories(id)
 		)`,
 	)
 	if err != nil {
@@ -87,8 +93,10 @@ func (s *SQLiteStore) createExpenseTable() error {
 func (s *SQLiteStore) createTagTable() error {
 	_, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS tags (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL UNIQUE
+			id TEXT NOT NULL,
+			name TEXT NOT NULL UNIQUE,
+
+			PRIMARY KEY (id)
 		)
 	`)
 	if err != nil {
@@ -100,7 +108,7 @@ func (s *SQLiteStore) createTagTable() error {
 func (s *SQLiteStore) createExpenseTagTable() error {
 	_, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS expense_tags (
-			expense_id INTEGER NOT NULL,
+			expense_id TEXT NOT NULL,
 			tag_id TEXT NOT NULL,
 
 			PRIMARY KEY (expense_id, tag_id),
@@ -114,60 +122,40 @@ func (s *SQLiteStore) createExpenseTagTable() error {
 	return nil
 }
 
-func (s *SQLiteStore) AddTagToExpense(expenseID int, tagID uuid.UUID) error {
+func (s *SQLiteStore) AddTagToExpense(expenseID, tagID uuid.UUID) error {
 	_, err := s.db.Exec(`
 		insert into expense_tags (expense_id, tag_id) values (?, ?)
-	`, expenseID, tagID.String())
+	`, expenseID.String(), tagID.String())
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *SQLiteStore) ListExpenses(filter model.ExpenseFilter) ([]model.Expense, error) {
-	query := `
-		select id, title, amount, category
+func (s *SQLiteStore) ListExpenses() ([]model.Expense, error) {
+	rows, err := s.db.Query(`
+		select id, title, amount, category_id, created_at
 		from expenses
-	`
-	args := make([]any, 0, 3)
-
-	if filter.Category != "" {
-		query += " where category = ?"
-		args = append(args, filter.Category)
-	}
-
-	query += " order by id asc"
-
-	if filter.Limit > 0 {
-		query += " limit ?"
-		args = append(args, filter.Limit)
-
-		if filter.Offset > 0 {
-			query += " offset ?"
-			args = append(args, filter.Offset)
-		}
-	}
-
-	rows, err := s.db.Query(query, args...)
+		order by created_at desc
+	`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	expenses := make([]model.Expense, 0)
-
 	for rows.Next() {
 		var expense model.Expense
 		err := rows.Scan(
 			&expense.ID,
 			&expense.Title,
 			&expense.Amount,
-			&expense.Category,
+			&expense.CategoryID,
+			&expense.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
-
 		expenses = append(expenses, expense)
 	}
 	if err := rows.Err(); err != nil {
@@ -176,19 +164,20 @@ func (s *SQLiteStore) ListExpenses(filter model.ExpenseFilter) ([]model.Expense,
 	return expenses, nil
 }
 
-func (s *SQLiteStore) GetExpenseByID(id int) (*model.Expense, error) {
-	row := s.db.QueryRow(`
-		select id, title, amount, category
+func (s *SQLiteStore) GetExpenseByID(id uuid.UUID) (*model.Expense, error) {
+	result := s.db.QueryRow(`
+		select id, title, amount, category_id, created_at
 		from expenses
 		where id = ?
-	`, id)
+	`, id.String())
 
 	var expense model.Expense
-	err := row.Scan(
+	err := result.Scan(
 		&expense.ID,
 		&expense.Title,
 		&expense.Amount,
-		&expense.Category,
+		&expense.CategoryID,
+		&expense.CreatedAt,
 	)
 
 	if err != nil {
@@ -201,51 +190,60 @@ func (s *SQLiteStore) GetExpenseByID(id int) (*model.Expense, error) {
 	return &expense, nil
 }
 
-func (s *SQLiteStore) CreateExpense(expense model.Expense) (*model.Expense, error) {
-	result, err := s.db.Exec(`
-		insert into expenses (title, amount, category)
-		values(?, ?, ?)
-	`, expense.Title, expense.Amount, expense.Category)
+func (s *SQLiteStore) CreateExpense(expense model.ExpenseRequest) (*model.Expense, error) {
+	id := uuid.NewV7()
+	result := s.db.QueryRow(`
+		insert into expenses (id, title, amount, category_id)
+		values(?, ?, ?, ?)
+		returning id, title, amount, category_id, created_at
+	`, id.String(), expense.Title, expense.Amount, expense.CategoryID.String())
+
+	var createdExpense model.Expense
+	err := result.Scan(
+		&createdExpense.ID,
+		&createdExpense.Title,
+		&createdExpense.Amount,
+		&createdExpense.CategoryID,
+		&createdExpense.CreatedAt,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	id, err := result.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
-
-	expense.ID = int(id)
-
-	return &expense, nil
+	return &createdExpense, nil
 }
 
-func (s *SQLiteStore) UpdateExpense(expense model.Expense) (*model.Expense, error) {
-	result, err := s.db.Exec(`
+func (s *SQLiteStore) UpdateExpense(id uuid.UUID, expense model.ExpenseRequest) (*model.Expense, error) {
+	result := s.db.QueryRow(`
 		update expenses
-		set title = ?, amount = ?, category = ?
+		set title = ?, amount = ?, category_id = ?
 		where id = ?
-	`, expense.Title, expense.Amount, expense.Category, expense.ID)
+		returning id, title, amount, category_id, created_at
+	`, expense.Title, expense.Amount, expense.CategoryID.String(), id.String())
+
+	var updatedExpense model.Expense
+	err := result.Scan(
+		&updatedExpense.ID,
+		&updatedExpense.Title,
+		&updatedExpense.Amount,
+		&updatedExpense.CategoryID,
+		&updatedExpense.CreatedAt,
+	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrExpenseNotFound
+		}
 		return nil, err
 	}
 
-	num, err := result.RowsAffected()
-	if err != nil {
-		return nil, err
-	}
-	if num == 0 {
-		return nil, model.ErrExpenseNotFound
-	}
-
-	return &expense, nil
+	return &updatedExpense, nil
 }
 
-func (s *SQLiteStore) DeleteExpense(id int) error {
+func (s *SQLiteStore) DeleteExpense(id uuid.UUID) error {
 	res, err := s.db.Exec(`
 		delete from expenses
 		where id = ?
-	`, id)
+	`, id.String())
 	if err != nil {
 		return err
 	}
@@ -266,16 +264,17 @@ func (s *SQLiteStore) GetExpenseSummary() (*model.ExpenseSummary, error) {
 	`)
 
 	var summary model.ExpenseSummary
-	if err := row.Scan(
-		&summary.Count,
-		&summary.TotalAmount,
-	); err != nil {
+	if err := row.Scan(&summary.Count, &summary.TotalAmount); err != nil {
 		return nil, err
 	}
 	return &summary, nil
 }
 
-func (s *SQLiteStore) CreateCategory(category model.Category) (*model.Category, error) {
+func (s *SQLiteStore) CreateCategory(req model.CategoryRequest) (*model.Category, error) {
+	category := model.Category{
+		Name: req.Name,
+	}
+
 	category.ID = uuid.NewV7()
 
 	_, err := s.db.Exec(`
@@ -307,15 +306,9 @@ func (s *SQLiteStore) ListCategories() ([]model.Category, error) {
 	defer rows.Close()
 
 	categories := make([]model.Category, 0)
-
-	var category model.Category
-
 	for rows.Next() {
-		err = rows.Scan(
-			&category.ID,
-			&category.Name,
-		)
-		if err != nil {
+		var category model.Category
+		if err := rows.Scan(&category.ID, &category.Name); err != nil {
 			return nil, err
 		}
 		categories = append(categories, category)
@@ -323,7 +316,6 @@ func (s *SQLiteStore) ListCategories() ([]model.Category, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-
 	return categories, nil
 }
 
@@ -332,20 +324,15 @@ func (s *SQLiteStore) GetCategoryByID(id uuid.UUID) (*model.Category, error) {
 		select id, name
 		from categories
 		where id = ?
-	`, id)
+	`, id.String())
 
 	var category model.Category
-	err := row.Scan(
-		&category.ID,
-		&category.Name,
-	)
-	if err != nil {
+	if err := row.Scan(&category.ID, &category.Name); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrCategoryNotFound
 		}
 		return nil, err
 	}
-
 	return &category, nil
 }
 
@@ -361,15 +348,9 @@ func (s *SQLiteStore) ListTags() ([]model.Tag, error) {
 	defer rows.Close()
 
 	tags := make([]model.Tag, 0)
-
-	var tag model.Tag
-
 	for rows.Next() {
-		err := rows.Scan(
-			&tag.ID,
-			&tag.Name,
-		)
-		if err != nil {
+		var tag model.Tag
+		if err := rows.Scan(&tag.ID, &tag.Name); err != nil {
 			return nil, err
 		}
 		tags = append(tags, tag)
@@ -386,13 +367,10 @@ func (s *SQLiteStore) CreateTag(tag model.Tag) (*model.Tag, error) {
 	_, err := s.db.Exec(`
 		insert into tags (id, name) values (?, ?)
 	`, tag.ID.String(), tag.Name)
-
 	if err != nil {
-		var sqlErr sqlite.Error
-		if errors.Is(err, &sqlErr) {
-			if sqlErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
-				return nil, model.ErrTagAlreadyExists
-			}
+		var sqlErr *sqlite.Error
+		if errors.As(err, &sqlErr) && sqlErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
+			return nil, model.ErrTagAlreadyExists
 		}
 		return nil, err
 	}

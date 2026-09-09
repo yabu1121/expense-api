@@ -2,12 +2,11 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 	"uuid"
 )
 
 type ExpenseTagStore interface {
-	AddTagToExpense(expenseID int, tagID uuid.UUID) error
+	AddTagToExpense(expenseID, tagID uuid.UUID) error
 }
 
 type ExpenseTagHandler struct {
@@ -22,7 +21,7 @@ func NewExpenseTagHandler(store ExpenseTagStore) *ExpenseTagHandler {
 
 func (h *ExpenseTagHandler) AddTagToExpense(w http.ResponseWriter, r *http.Request) {
 	expenseIDParam := r.PathValue("expenseID")
-	expenseID, err := strconv.Atoi(expenseIDParam)
+	expenseID, err := uuid.Parse(expenseIDParam)
 	if err != nil {
 		http.Error(
 			w,

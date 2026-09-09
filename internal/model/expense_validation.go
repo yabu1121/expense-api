@@ -2,16 +2,15 @@ package model
 
 import (
 	"strings"
+	"uuid"
 )
 
-func (e *Expense) Normalize() {
+func (e *ExpenseRequest) Normalize() {
 	trimmedTitle := strings.TrimSpace(e.Title)
-	trimmedCategory := strings.TrimSpace(e.Category)
 	e.Title = trimmedTitle
-	e.Category = trimmedCategory
 }
 
-func (e Expense) Validate() error {
+func (e ExpenseRequest) Validate() error {
 	if err := e.validateTitle(); err != nil {
 		return err
 	}
@@ -20,30 +19,23 @@ func (e Expense) Validate() error {
 		return err
 	}
 
-	if err := e.validateCategory(); err != nil {
-		return err
+	if e.CategoryID == uuid.Nil() {
+		return ErrCategoryIDRequired
 	}
 
 	return nil
 }
 
-func (e Expense) validateTitle() error {
+func (e ExpenseRequest) validateTitle() error {
 	if e.Title == "" {
 		return ErrTitleRequired
 	}
 	return nil
 }
 
-func (e Expense) validateAmount() error {
+func (e ExpenseRequest) validateAmount() error {
 	if e.Amount <= 0 {
 		return ErrAmountMustBePositive
-	}
-	return nil
-}
-
-func (e Expense) validateCategory() error {
-	if e.Category == "" {
-		return ErrCategoryRequired
 	}
 	return nil
 }

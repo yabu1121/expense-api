@@ -3,43 +3,43 @@ package model
 import (
 	"errors"
 	"testing"
+	"uuid"
 )
 
 func TestExpenseNormalize(t *testing.T) {
-	spaceOnlyTitleExpense := Expense{
-		Title:    " ",
-		Amount:   500,
-		Category: "food",
+	spaceOnlyTitleExpense := ExpenseRequest{
+		Title:      " ",
+		Amount:     500,
+		CategoryID: uuid.Nil(),
 	}
 
-	spaceOnlyCategoryExpense := Expense{
-		Title:    "coffee",
-		Amount:   500,
-		Category: " ",
+	spaceOnlyCategoryExpense := ExpenseRequest{
+		Title:      "coffee",
+		Amount:     500,
+		CategoryID: uuid.Nil(),
 	}
 
 	tests := []struct {
 		name            string
-		expense         Expense
-		expectedExpense Expense
+		expense         ExpenseRequest
+		expectedExpense ExpenseRequest
 	}{
 		{
 			name:    "space only title",
 			expense: spaceOnlyTitleExpense,
-			expectedExpense: Expense{
-				Title:    "",
-				Amount:   500,
-				Category: "food",
+			expectedExpense: ExpenseRequest{
+				Title:      "",
+				Amount:     500,
+				CategoryID: uuid.Nil(),
 			},
 		},
-
 		{
 			name:    "space only category",
 			expense: spaceOnlyCategoryExpense,
-			expectedExpense: Expense{
-				Title:    "coffee",
-				Amount:   500,
-				Category: "",
+			expectedExpense: ExpenseRequest{
+				Title:      "coffee",
+				Amount:     500,
+				CategoryID: uuid.Nil(),
 			},
 		},
 	}
@@ -55,39 +55,34 @@ func TestExpenseNormalize(t *testing.T) {
 }
 
 func TestExpenseValidation(t *testing.T) {
-	validExpense := Expense{
-		Title:    "coffee",
-		Amount:   500,
-		Category: "food",
+	categoryID := uuid.NewV7()
+	validExpense := ExpenseRequest{
+		Title:      "coffee",
+		Amount:     500,
+		CategoryID: categoryID,
 	}
 
-	emptyTitleExpense := Expense{
-		Title:    "",
-		Amount:   500,
-		Category: "food",
+	emptyTitleExpense := ExpenseRequest{
+		Title:      "",
+		Amount:     500,
+		CategoryID: categoryID,
 	}
 
-	zeroAmountExpense := Expense{
-		Title:    "coffee",
-		Amount:   0,
-		Category: "food",
+	zeroAmountExpense := ExpenseRequest{
+		Title:      "coffee",
+		Amount:     0,
+		CategoryID: categoryID,
 	}
 
-	negativeAmountExpense := Expense{
-		Title:    "coffee",
-		Amount:   -1,
-		Category: "food",
-	}
-
-	emptyCategoryExpense := Expense{
-		Title:    "coffee",
-		Amount:   500,
-		Category: "",
+	negativeAmountExpense := ExpenseRequest{
+		Title:      "coffee",
+		Amount:     -1,
+		CategoryID: categoryID,
 	}
 
 	tests := []struct {
 		name    string
-		expense Expense
+		expense ExpenseRequest
 		wantErr error
 	}{
 		{
@@ -111,9 +106,12 @@ func TestExpenseValidation(t *testing.T) {
 			wantErr: ErrAmountMustBePositive,
 		},
 		{
-			name:    "empty category",
-			expense: emptyCategoryExpense,
-			wantErr: ErrCategoryRequired,
+			name: "empty category id",
+			expense: ExpenseRequest{
+				Title:  "coffee",
+				Amount: 500,
+			},
+			wantErr: ErrCategoryIDRequired,
 		},
 	}
 

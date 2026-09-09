@@ -13,7 +13,7 @@ import (
 type CategoryStore interface {
 	ListCategories() ([]model.Category, error)
 	GetCategoryByID(id uuid.UUID) (*model.Category, error)
-	CreateCategory(category model.Category) (*model.Category, error)
+	CreateCategory(category model.CategoryRequest) (*model.Category, error)
 }
 
 type CreateCategoryRequest struct {
@@ -77,7 +77,7 @@ func (h *CategoryHandler) CreateCategory(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	createdCategory, err := h.store.CreateCategory(category)
+	createdCategory, err := h.store.CreateCategory(model.CategoryRequest{Name: category.Name})
 	if err != nil {
 		if errors.Is(err, model.ErrCategoryAlreadyExists) {
 			http.Error(

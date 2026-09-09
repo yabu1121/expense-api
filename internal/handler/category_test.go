@@ -22,10 +22,11 @@ func (f *fakeCategoryStore) ListCategories() ([]model.Category, error) {
 	return f.categories, f.err
 }
 
-func (f *fakeCategoryStore) CreateCategory(category model.Category) (*model.Category, error) {
+func (f *fakeCategoryStore) CreateCategory(request model.CategoryRequest) (*model.Category, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
+	category := model.Category{Name: request.Name}
 	category.ID = uuid.NewV7()
 	return &category, nil
 }

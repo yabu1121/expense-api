@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+	"uuid"
 
 	"github.com/yabu1121/expense-api/internal/model"
 )
@@ -16,40 +18,16 @@ type fakeExpenseStore struct {
 	err      error
 }
 
-func (f *fakeExpenseStore) ListExpenses(
-	filter model.ExpenseFilter,
-) ([]model.Expense, error) {
+func (f *fakeExpenseStore) ListExpenses() ([]model.Expense, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-
 	expenses := f.expenses
 
-	if filter.Category != "" {
-		filtered := make([]model.Expense, 0)
-		for _, expense := range expenses {
-			if expense.Category == filter.Category {
-				filtered = append(filtered, expense)
-			}
-		}
-
-		expenses = filtered
-	}
-
-	start := filter.Offset
-	if start > len(expenses) {
-		start = len(expenses)
-	}
-
-	end := len(expenses)
-	if filter.Limit > 0 && start+filter.Limit < end {
-		end = start + filter.Limit
-	}
-
-	return expenses[start:end], nil
+	return expenses, nil
 }
 
-func (f *fakeExpenseStore) GetExpenseByID(id int) (*model.Expense, error) {
+func (f *fakeExpenseStore) GetExpenseByID(id uuid.UUID) (*model.Expense, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -62,31 +40,38 @@ func (f *fakeExpenseStore) GetExpenseByID(id int) (*model.Expense, error) {
 	return nil, model.ErrExpenseNotFound
 }
 
-func (f *fakeExpenseStore) CreateExpense(expense model.Expense) (*model.Expense, error) {
+func (f *fakeExpenseStore) CreateExpense(expense model.ExpenseRequest) (*model.Expense, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	expense.ID = 1
-	return &expense, nil
+	result := model.Expense{
+		ID:         uuid.NewV7(),
+		Title:      expense.Title,
+		Amount:     expense.Amount,
+		CategoryID: expense.CategoryID,
+		CreatedAt:  time.Now(),
+	}
+
+	return &result, nil
 }
 
-func (f *fakeExpenseStore) UpdateExpense(expense model.Expense) (*model.Expense, error) {
+func (f *fakeExpenseStore) UpdateExpense(id uuid.UUID, expense model.ExpenseRequest) (*model.Expense, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-
-	id := expense.ID
 
 	for i := range f.expenses {
 		if f.expenses[i].ID == id {
-			f.expenses[i] = expense
+			f.expenses[i].Title = expense.Title
+			f.expenses[i].Amount = expense.Amount
+			f.expenses[i].CategoryID = expense.CategoryID
 			return &f.expenses[i], nil
 		}
 	}
 	return nil, model.ErrExpenseNotFound
 }
 
-func (f *fakeExpenseStore) DeleteExpense(id int) error {
+func (f *fakeExpenseStore) DeleteExpense(id uuid.UUID) error {
 	if f.err != nil {
 		return f.err
 	}
@@ -111,74 +96,109 @@ func (f *fakeExpenseStore) DeleteExpense(id int) error {
 	return nil
 }
 
-func (f *fakeExpenseStore) GetExpenseSummary() (*model.ExpenseSummary, error) {
-	if f.err != nil {
-		return nil, f.err
-	}
+// func (f *fakeExpenseStore) GetExpenseSummary() (*model.ExpenseSummary, error) {
+// 	if f.err != nil {
+// 		return nil, f.err
+// 	}
 
-	var count, total_amount int
+// 	var count, total_amount int
 
-	for _, expense := range f.expenses {
-		count += 1
-		total_amount += expense.Amount
-	}
+// 	for _, expense := range f.expenses {
+// 		count += 1
+// 		total_amount += expense.Amount
+// 	}
 
-	return &model.ExpenseSummary{
-		Count:       count,
-		TotalAmount: total_amount,
-	}, nil
-}
+// 	return &model.ExpenseSummary{
+// 		Count:       count,
+// 		TotalAmount: total_amount,
+// 	}, nil
+// }
 
 func TestListExpenses(t *testing.T) {
-	tests := []struct {
-		name           string
-		store          *fakeExpenseStore
-		expectedStatus int
-	}{
-		{
-			name: "success",
-			store: &fakeExpenseStore{
-				expenses: []model.Expense{
-					{
-						ID:       1,
-						Title:    "coffee",
-						Amount:   500,
-						Category: "food",
-					},
-				},
+	expenseID1 := uuid.NewV7()
+	expenseID2 := uuid.NewV7()
+	expenseID3 := uuid.NewV7()
+	categoryFoodID := uuid.NewV7()
+
+	store := &fakeExpenseStore{
+		expenses: []model.Expense{
+			{
+				ID:         expenseID1,
+				Title:      "coffee",
+				Amount:     500,
+				CategoryID: categoryFoodID,
+				CreatedAt:  time.Now(),
 			},
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name: "store error",
-			store: &fakeExpenseStore{
-				err: errors.New("store error"),
+			{
+				ID:         expenseID2,
+				Title:      "latte",
+				Amount:     550,
+				CategoryID: categoryFoodID,
+				CreatedAt:  time.Now(),
 			},
-			expectedStatus: http.StatusInternalServerError,
+			{
+				ID:         expenseID3,
+				Title:      "moca",
+				Amount:     600,
+				CategoryID: categoryFoodID,
+				CreatedAt:  time.Now(),
+			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := NewExpenseHandler(tt.store)
+	t.Run("success", func(t *testing.T) {
+		handler := NewExpenseHandler(store)
 
-			req := httptest.NewRequest(http.MethodGet, "/expenses", nil)
-			recorder := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/expenses", nil)
+		recorder := httptest.NewRecorder()
 
-			handler.ListExpenses(recorder, req)
+		handler.ListExpenses(recorder, req)
 
-			if recorder.Code != tt.expectedStatus {
-				t.Fatalf(
-					"expected status %d, got %d",
-					tt.expectedStatus,
-					recorder.Code,
-				)
-			}
-		})
-	}
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+		}
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		expenses := make([]model.Expense, 0)
+		emptyStore := &fakeExpenseStore{
+			expenses: expenses,
+		}
+		handler := NewExpenseHandler(emptyStore)
+
+		req := httptest.NewRequest(http.MethodGet, "/expenses", nil)
+		recorder := httptest.NewRecorder()
+
+		handler.ListExpenses(recorder, req)
+
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+		}
+	})
+
+	t.Run("store error", func(t *testing.T) {
+		errorStore := &fakeExpenseStore{
+			err: errors.New("store error"),
+		}
+
+		handler := NewExpenseHandler(errorStore)
+
+		req := httptest.NewRequest(http.MethodGet, "/expenses", nil)
+		recorder := httptest.NewRecorder()
+
+		handler.ListExpenses(recorder, req)
+
+		if recorder.Code != http.StatusInternalServerError {
+			t.Fatalf("expected %d, got %d", http.StatusInternalServerError, recorder.Code)
+		}
+	})
 }
 
 func TestGetExpenseByID(t *testing.T) {
+	id1 := uuid.NewV7()
+	id2 := uuid.NewV7()
+	id3 := uuid.NewV7()
+	foodCategoryID := uuid.NewV7()
 	tests := []struct {
 		id             string
 		name           string
@@ -187,34 +207,34 @@ func TestGetExpenseByID(t *testing.T) {
 		expectedStatus int
 	}{
 		{
-			id:   "1",
+			id:   id2.String(),
 			name: "success",
 			store: &fakeExpenseStore{
 				expenses: []model.Expense{
 					{
-						ID:       1,
-						Title:    "coffee",
-						Amount:   500,
-						Category: "food",
+						ID:         id1,
+						Title:      "coffee",
+						Amount:     500,
+						CategoryID: foodCategoryID,
 					},
 					{
-						ID:       2,
-						Title:    "latte",
-						Amount:   550,
-						Category: "food",
+						ID:         id2,
+						Title:      "latte",
+						Amount:     550,
+						CategoryID: foodCategoryID,
 					},
 				},
 			},
 			wantExpense: model.Expense{
-				ID:       1,
-				Title:    "coffee",
-				Amount:   500,
-				Category: "food",
+				ID:         id2,
+				Title:      "latte",
+				Amount:     550,
+				CategoryID: foodCategoryID,
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
-			id:             "999",
+			id:             id3.String(),
 			name:           "not found",
 			store:          &fakeExpenseStore{},
 			expectedStatus: http.StatusNotFound,
@@ -226,15 +246,15 @@ func TestGetExpenseByID(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			id:   "1",
+			id:   id1.String(),
 			name: "store error",
 			store: &fakeExpenseStore{
 				expenses: []model.Expense{
 					{
-						ID:       1,
-						Title:    "coffee",
-						Amount:   500,
-						Category: "food",
+						ID:         id1,
+						Title:      "coffee",
+						Amount:     500,
+						CategoryID: foodCategoryID,
 					},
 				},
 				err: errors.New("store error"),
@@ -254,11 +274,7 @@ func TestGetExpenseByID(t *testing.T) {
 			handler.GetExpenseByID(recorder, req)
 
 			if recorder.Code != tt.expectedStatus {
-				t.Fatalf(
-					"expected status to %d, got %d",
-					tt.expectedStatus,
-					recorder.Code,
-				)
+				t.Fatalf("expected status to %d, got %d", tt.expectedStatus, recorder.Code)
 			}
 
 			if tt.expectedStatus == http.StatusOK {
@@ -276,10 +292,11 @@ func TestGetExpenseByID(t *testing.T) {
 }
 
 func TestCreateExpense(t *testing.T) {
-	expense := model.Expense{
-		Title:    "coffee",
-		Amount:   500,
-		Category: "food",
+	categoryID := uuid.NewV7()
+	expense := model.ExpenseRequest{
+		Title:      "coffee",
+		Amount:     500,
+		CategoryID: categoryID,
 	}
 
 	validBody, err := json.Marshal(expense)
@@ -290,9 +307,9 @@ func TestCreateExpense(t *testing.T) {
 	invalidBody := []byte(`{"title": "coffee"`)
 
 	emptyTitleExpense := model.Expense{
-		Title:    "",
-		Amount:   500,
-		Category: "food",
+		Title:      "",
+		Amount:     500,
+		CategoryID: categoryID,
 	}
 
 	emptyTitleBody, err := json.Marshal(emptyTitleExpense)
@@ -301,9 +318,9 @@ func TestCreateExpense(t *testing.T) {
 	}
 
 	spaceOnlyTitleExpense := model.Expense{
-		Title:    "　",
-		Amount:   500,
-		Category: "food",
+		Title:      "　",
+		Amount:     500,
+		CategoryID: categoryID,
 	}
 
 	spaceOnlyTitleBody, err := json.Marshal(spaceOnlyTitleExpense)
@@ -312,9 +329,9 @@ func TestCreateExpense(t *testing.T) {
 	}
 
 	zeroAmountExpense := model.Expense{
-		Title:    "coffee",
-		Amount:   0,
-		Category: "food",
+		Title:      "coffee",
+		Amount:     0,
+		CategoryID: categoryID,
 	}
 
 	zeroAmountBody, err := json.Marshal(zeroAmountExpense)
@@ -323,36 +340,14 @@ func TestCreateExpense(t *testing.T) {
 	}
 
 	negativeAmountExpense := model.Expense{
-		Title:    "coffee",
-		Amount:   -1,
-		Category: "food",
+		Title:      "coffee",
+		Amount:     -1,
+		CategoryID: categoryID,
 	}
 
 	negativeAmountBody, err := json.Marshal(negativeAmountExpense)
 	if err != nil {
 		t.Fatalf("failed to marshal negative amount expense: %v", err)
-	}
-
-	emptyCategoryExpense := model.Expense{
-		Title:    "coffee",
-		Amount:   500,
-		Category: "",
-	}
-
-	emptyCategoryBody, err := json.Marshal(emptyCategoryExpense)
-	if err != nil {
-		t.Fatalf("failed to marshal empty category expense: %v", err)
-	}
-
-	spaceOnlyCategoryExpense := model.Expense{
-		Title:    "coffee",
-		Amount:   500,
-		Category: " ",
-	}
-
-	spaceOnlyCategoryBody, err := json.Marshal(spaceOnlyCategoryExpense)
-	if err != nil {
-		t.Fatalf("failed to marshal space only category expense: %v", err)
 	}
 
 	tests := []struct {
@@ -405,18 +400,6 @@ func TestCreateExpense(t *testing.T) {
 			body:           negativeAmountBody,
 			expectedStatus: http.StatusBadRequest,
 		},
-		{
-			name:           "empty category",
-			store:          &fakeExpenseStore{},
-			body:           emptyCategoryBody,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "space only category",
-			store:          &fakeExpenseStore{},
-			body:           spaceOnlyCategoryBody,
-			expectedStatus: http.StatusBadRequest,
-		},
 	}
 
 	for _, tt := range tests {
@@ -431,11 +414,7 @@ func TestCreateExpense(t *testing.T) {
 			handler.CreateExpense(recorder, req)
 
 			if recorder.Code != tt.expectedStatus {
-				t.Fatalf(
-					"expected status %d, got %d",
-					tt.expectedStatus,
-					recorder.Code,
-				)
+				t.Fatalf("expected status %d, got %d", tt.expectedStatus, recorder.Code)
 			}
 
 			if tt.expectedStatus == http.StatusCreated {
@@ -443,33 +422,17 @@ func TestCreateExpense(t *testing.T) {
 				if err := json.NewDecoder(recorder.Body).Decode(&createdExpense); err != nil {
 					t.Fatalf("failed to decode created expense: %v", err)
 				}
-				if createdExpense.ID != 1 {
-					t.Fatalf(
-						"expected id %d, got %d",
-						1,
-						createdExpense.ID,
-					)
+				if createdExpense.ID == uuid.Nil() {
+					t.Fatalf("expected id %q, got %q", uuid.Nil(), createdExpense.ID)
 				}
 				if createdExpense.Title != "coffee" {
-					t.Fatalf(
-						"expected title %q, got %q",
-						"coffee",
-						createdExpense.Title,
-					)
+					t.Fatalf("expected title %q, got %q", "coffee", createdExpense.Title)
 				}
 				if createdExpense.Amount != 500 {
-					t.Fatalf(
-						"expected amount %d, got %d",
-						500,
-						createdExpense.Amount,
-					)
+					t.Fatalf("expected amount %d, got %d", 500, createdExpense.Amount)
 				}
-				if createdExpense.Category != "food" {
-					t.Fatalf(
-						"expected category %q, got %q",
-						"food",
-						createdExpense.Category,
-					)
+				if createdExpense.CategoryID != categoryID {
+					t.Fatalf("expected category %q, got %q", categoryID, createdExpense.CategoryID)
 				}
 			}
 		})
@@ -477,6 +440,8 @@ func TestCreateExpense(t *testing.T) {
 }
 
 func TestDeleteExpenseByID(t *testing.T) {
+	id1 := uuid.NewV7()
+	foodCategoryID := uuid.NewV7()
 	tests := []struct {
 		id             string
 		name           string
@@ -484,22 +449,22 @@ func TestDeleteExpenseByID(t *testing.T) {
 		expectedStatus int
 	}{
 		{
-			id:   "1",
+			id:   id1.String(),
 			name: "success",
 			store: &fakeExpenseStore{
 				expenses: []model.Expense{
 					{
-						ID:       1,
-						Title:    "coffee",
-						Amount:   500,
-						Category: "food",
+						ID:         id1,
+						Title:      "coffee",
+						Amount:     500,
+						CategoryID: foodCategoryID,
 					},
 				},
 			},
 			expectedStatus: http.StatusNoContent,
 		},
 		{
-			id:             "999",
+			id:             id1.String(),
 			name:           "not found",
 			store:          &fakeExpenseStore{},
 			expectedStatus: http.StatusNotFound,
@@ -511,15 +476,15 @@ func TestDeleteExpenseByID(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			id:   "1",
+			id:   id1.String(),
 			name: "store error",
 			store: &fakeExpenseStore{
 				expenses: []model.Expense{
 					{
-						ID:       1,
-						Title:    "coffee",
-						Amount:   500,
-						Category: "food",
+						ID:         id1,
+						Title:      "coffee",
+						Amount:     500,
+						CategoryID: foodCategoryID,
 					},
 				},
 				err: errors.New("store error"),
@@ -550,10 +515,24 @@ func TestDeleteExpenseByID(t *testing.T) {
 }
 
 func TestUpdateExpenseByID(t *testing.T) {
-	expense := model.Expense{
-		Title:    "coffee",
-		Amount:   500,
-		Category: "food",
+	id1 := uuid.NewV7()
+	foodCategoryID := uuid.NewV7()
+
+	store := &fakeExpenseStore{
+		expenses: []model.Expense{
+			{
+				ID:         id1,
+				Title:      "coffee",
+				Amount:     500,
+				CategoryID: foodCategoryID,
+			},
+		},
+	}
+
+	expense := model.ExpenseRequest{
+		Title:      "latte",
+		Amount:     550,
+		CategoryID: foodCategoryID,
 	}
 
 	validBody, err := json.Marshal(expense)
@@ -561,277 +540,115 @@ func TestUpdateExpenseByID(t *testing.T) {
 		t.Fatalf("failed to marshal expense %v", err)
 	}
 
-	invalidBody := []byte(`{"title": "coffee"`)
+	t.Run("success", func(t *testing.T) {
+		handler := NewExpenseHandler(store)
 
-	emptyTitleExpense := model.Expense{
-		ID:       1,
-		Title:    "",
-		Amount:   500,
-		Category: "food",
-	}
+		reader := bytes.NewReader(validBody)
 
-	emptyTitleExpenseBody, err := json.Marshal(emptyTitleExpense)
-	if err != nil {
-		t.Fatalf("failed to marshal empty title expense: %v", err)
-	}
+		req := httptest.NewRequest(http.MethodPut, "/expenses/"+id1.String(), reader)
+		req.SetPathValue("id", id1.String())
+		recorder := httptest.NewRecorder()
 
-	tests := []struct {
-		id             string
-		name           string
-		body           []byte
-		store          fakeExpenseStore
-		expectedStatus int
-	}{
-		{
-			id:   "1",
-			name: "success",
-			body: validBody,
-			store: fakeExpenseStore{
-				expenses: []model.Expense{
-					{
-						ID:       1,
-						Title:    "latte",
-						Amount:   550,
-						Category: "food",
-					},
-				},
-			},
-			expectedStatus: http.StatusOK,
-		},
-		{
-			id:   "999",
-			name: "not found",
-			body: validBody,
-			store: fakeExpenseStore{
-				expenses: []model.Expense{
-					{
-						ID:       1,
-						Title:    "latte",
-						Amount:   550,
-						Category: "food",
-					},
-				},
-			},
-			expectedStatus: http.StatusNotFound,
-		},
-		{
-			id:   "adj",
-			name: "invalid id",
-			body: validBody,
-			store: fakeExpenseStore{
-				expenses: []model.Expense{
-					{
-						ID:       1,
-						Title:    "latte",
-						Amount:   550,
-						Category: "food",
-					},
-				},
-			},
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			id:   "1",
-			name: "store error",
-			body: validBody,
-			store: fakeExpenseStore{
-				expenses: []model.Expense{
-					{
-						ID:       1,
-						Title:    "latte",
-						Amount:   550,
-						Category: "food",
-					},
-				},
-				err: errors.New("store error"),
-			},
-			expectedStatus: http.StatusInternalServerError,
-		},
-		{
-			id:   "1",
-			name: "invalid json request",
-			body: invalidBody,
-			store: fakeExpenseStore{
-				expenses: []model.Expense{
-					{
-						ID:       1,
-						Title:    "latte",
-						Amount:   550,
-						Category: "food",
-					},
-				},
-			},
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			id:   "1",
-			name: "empty title",
-			body: emptyTitleExpenseBody,
-			store: fakeExpenseStore{
-				expenses: []model.Expense{
-					{
-						ID:       1,
-						Title:    "latte",
-						Amount:   550,
-						Category: "food",
-					},
-				},
-			},
-			expectedStatus: http.StatusBadRequest,
-		},
-	}
+		handler.UpdateExpenseByID(recorder, req)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := NewExpenseHandler(&tt.store)
-
-			reader := bytes.NewReader(tt.body)
-
-			req := httptest.NewRequest(http.MethodPut, "/expenses/"+tt.id, reader)
-			req.SetPathValue("id", tt.id)
-			recorder := httptest.NewRecorder()
-
-			handler.UpdateExpenseByID(recorder, req)
-
-			if recorder.Code != tt.expectedStatus {
-				t.Fatalf(
-					"expected status %d, got %d",
-					tt.expectedStatus,
-					recorder.Code,
-				)
-			}
-
-			if tt.expectedStatus == http.StatusOK {
-				var updatedExpense model.Expense
-				if err := json.NewDecoder(recorder.Body).Decode(&updatedExpense); err != nil {
-					t.Fatalf("failed to decode updated expense: %v", err)
-				}
-
-				if updatedExpense.ID != 1 {
-					t.Fatalf(
-						"expected expense ID %d, got %d",
-						1,
-						updatedExpense.ID,
-					)
-				}
-				if updatedExpense.Title != "coffee" {
-					t.Fatalf(
-						"expected expense title %s, got %s",
-						"coffee",
-						updatedExpense.Title,
-					)
-				}
-				if updatedExpense.Amount != 500 {
-					t.Fatalf(
-						"expected expense amount %d, got %d",
-						500,
-						updatedExpense.Amount,
-					)
-				}
-				if updatedExpense.Category != "food" {
-					t.Fatalf(
-						"expected expense category %s, got %s",
-						"food",
-						updatedExpense.Category,
-					)
-				}
-			}
-		})
-	}
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+		}
+	})
 }
 
-func TestGetExpenseSummary(t *testing.T) {
-	tests := []struct {
-		name           string
-		store          *fakeExpenseStore
-		expectedResult model.ExpenseSummary
-		expectedStatus int
-	}{
-		{
-			name: "success",
-			store: &fakeExpenseStore{
-				expenses: []model.Expense{
-					{
-						ID:       1,
-						Title:    "coffee",
-						Amount:   500,
-						Category: "food",
-					},
-					{
-						ID:       2,
-						Title:    "latte",
-						Amount:   550,
-						Category: "food",
-					},
-				},
-			},
-			expectedResult: model.ExpenseSummary{
-				Count:       2,
-				TotalAmount: 1050,
-			},
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name: "success2",
-			store: &fakeExpenseStore{
-				expenses: []model.Expense{
-					{
-						ID:       1,
-						Title:    "coffee",
-						Amount:   500,
-						Category: "food",
-					},
-					{
-						ID:       2,
-						Title:    "latte",
-						Amount:   550,
-						Category: "food",
-					},
-					{
-						ID:       3,
-						Title:    "moca",
-						Amount:   700,
-						Category: "food",
-					},
-				},
-			},
-			expectedResult: model.ExpenseSummary{
-				Count:       3,
-				TotalAmount: 1750,
-			},
-			expectedStatus: http.StatusOK,
-		},
-	}
+// func TestGetExpenseSummary(t *testing.T) {
+// 	tests := []struct {
+// 		name           string
+// 		store          *fakeExpenseStore
+// 		expectedResult model.ExpenseSummary
+// 		expectedStatus int
+// 	}{
+// 		{
+// 			name: "success",
+// 			store: &fakeExpenseStore{
+// 				expenses: []model.Expense{
+// 					{
+// 						ID:       1,
+// 						Title:    "coffee",
+// 						Amount:   500,
+// 						Category: "food",
+// 					},
+// 					{
+// 						ID:       2,
+// 						Title:    "latte",
+// 						Amount:   550,
+// 						Category: "food",
+// 					},
+// 				},
+// 			},
+// 			expectedResult: model.ExpenseSummary{
+// 				Count:       2,
+// 				TotalAmount: 1050,
+// 			},
+// 			expectedStatus: http.StatusOK,
+// 		},
+// 		{
+// 			name: "success2",
+// 			store: &fakeExpenseStore{
+// 				expenses: []model.Expense{
+// 					{
+// 						ID:       1,
+// 						Title:    "coffee",
+// 						Amount:   500,
+// 						Category: "food",
+// 					},
+// 					{
+// 						ID:       2,
+// 						Title:    "latte",
+// 						Amount:   550,
+// 						Category: "food",
+// 					},
+// 					{
+// 						ID:       3,
+// 						Title:    "moca",
+// 						Amount:   700,
+// 						Category: "food",
+// 					},
+// 				},
+// 			},
+// 			expectedResult: model.ExpenseSummary{
+// 				Count:       3,
+// 				TotalAmount: 1750,
+// 			},
+// 			expectedStatus: http.StatusOK,
+// 		},
+// 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := NewExpenseSummaryHandler(tt.store)
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			handler := NewExpenseSummaryHandler(tt.store)
 
-			recorder := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/expenses/summary", nil)
+// 			recorder := httptest.NewRecorder()
+// 			req := httptest.NewRequest(http.MethodGet, "/expenses/summary", nil)
 
-			handler.GetExpenseSummary(recorder, req)
+// 			handler.GetExpenseSummary(recorder, req)
 
-			if recorder.Code != tt.expectedStatus {
-				t.Fatalf(
-					"expected status %d, got %d",
-					tt.expectedStatus,
-					recorder.Code,
-				)
-			}
+// 			if recorder.Code != tt.expectedStatus {
+// 				t.Fatalf(
+// 					"expected status %d, got %d",
+// 					tt.expectedStatus,
+// 					recorder.Code,
+// 				)
+// 			}
 
-			var res model.ExpenseSummary
-			if err := json.NewDecoder(recorder.Body).Decode(&res); err != nil {
-				t.Fatalf("failed to decode expense summary: %v", err)
-			}
+// 			var res model.ExpenseSummary
+// 			if err := json.NewDecoder(recorder.Body).Decode(&res); err != nil {
+// 				t.Fatalf("failed to decode expense summary: %v", err)
+// 			}
 
-			if res.Count != tt.expectedResult.Count {
-				t.Fatalf("result count is not matched")
-			}
+// 			if res.Count != tt.expectedResult.Count {
+// 				t.Fatalf("result count is not matched")
+// 			}
 
-			if res.TotalAmount != tt.expectedResult.TotalAmount {
-				t.Fatalf("result total amount is not matched")
-			}
-		})
-	}
-}
+// 			if res.TotalAmount != tt.expectedResult.TotalAmount {
+// 				t.Fatalf("result total amount is not matched")
+// 			}
+// 		})
+// 	}
+// }

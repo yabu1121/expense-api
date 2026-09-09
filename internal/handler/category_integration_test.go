@@ -1,3 +1,5 @@
+//go:build integration
+
 package handler_test
 
 import (
@@ -50,7 +52,7 @@ func TestCreateCategoryIntegration(t *testing.T) {
 			mux.HandleFunc("POST /categories", categoryHandler.CreateCategory)
 
 			for _, c := range tt.existingCategories {
-				_, err := categoryStore.CreateCategory(c)
+				_, err := categoryStore.CreateCategory(model.CategoryRequest{Name: c.Name})
 				if err != nil {
 					t.Fatalf("failed to create category to the store: %v", err)
 				}
@@ -148,7 +150,7 @@ func TestGetCategoryByIDIntegration(t *testing.T) {
 
 			var createdCategories []model.Category
 			for _, c := range tt.existingCategories {
-				createdCategory, err := categoryStore.CreateCategory(c)
+				createdCategory, err := categoryStore.CreateCategory(model.CategoryRequest{Name: c.Name})
 				if err != nil {
 					t.Fatalf("failed to create category to the store: %v", err)
 				}
