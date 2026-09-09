@@ -1,52 +1,52 @@
 # Expense API
 
-Goの標準ライブラリとSQLiteを使った、支出管理用のREST APIです。
+Go標準ライブラリとSQLiteを使った、個人向けツール群のバックエンドを目指す学習用REST APIです。
 
-WebフレームワークやORMを使う前に、HTTP、JSON、SQL、テスト、Dockerの仕組みを理解することを目的とした学習用プロジェクトです。
+現在はExpense・Category・Tagを題材に、HTTP、JSON、SQL、テスト、Docker、レイヤ分離を学んでいます。将来的には機能単位で拡張できるモジュラーモノリスへ発展させ、Clean Architecture、gRPC、キャッシュ、非同期処理、認証、監視なども段階的に扱います。
 
 ## 技術スタック
 
-- Go
+- Go 1.27
 - `net/http`
 - `encoding/json`
 - `database/sql`
-- SQLite（`modernc.org/sqlite`ドライバ）
+- SQLite（`modernc.org/sqlite`）
+- UUID v7
 - Docker / Docker Compose
 
-## 設計
-
-HTTP処理とDB処理を分離するため、Handler / Store / Modelの3層構成を採用しています。
+## 現在の設計
 
 ```text
 Client
   ↓ HTTP / JSON
 Handler
-  ↓ Model / Filter
-Store
+  ↓ Model / Request
+Store interface
+  ↓
+SQLiteStore
   ↓ SQL
 SQLite
 ```
 
-- Handler：ルーティング、HTTP入力、JSON、ステータスコード
-- Store：`database/sql`とSQLiteによるデータ操作
-- Model：Expense、集計結果、validation、検索条件
+- Handler：HTTP入力、JSON、ステータスコード
+- Model：データ構造、Normalize、Validate、ドメインエラー
+- Store：`database/sql`によるSQLite操作
+- `cmd/api`：StoreとHandlerの組み立て、ルーティング、HTTPサーバー起動
 
-Handler側に小さなStore interfaceを置き、テストではFake Storeを注入します。CategoryとTagの作成ではRequest DTOを使い、HTTP入力とDomain Modelを分離しています。
+Handlerは具体的なSQLiteStoreではなく、小さなStore interfaceへ依存します。本番では`SQLiteStore`、HandlerテストではFake Storeを注入します。構造体に追加のフィールドやメソッドがあっても、interfaceが要求する全メソッドのシグネチャを満たせば利用できます。
 
 ## ディレクトリ構成
 
 ```text
 .
-├── cmd/api/main.go                  # 依存関係の組み立てとHTTPサーバー
-├── internal/handler/                # HTTP・JSON・ルーティング
-├── internal/model/                  # Model・validation・検索条件
-├── internal/store/                  # SQLiteとSQL
-├── Dockerfile                       # マルチステージビルド
-├── docker-compose.yml               # APIと永続volume
-└── .env.sample                      # 環境変数の例
+├── cmd/api/main.go          # 依存関係の組み立てとHTTPサーバー
+├── internal/handler/        # HTTP HandlerとHandlerテスト
+├── internal/model/          # Model、Request、validation、エラー
+├── internal/store/          # SQLite実装とStoreテスト
+├── sandbox/                 # APIを手動確認する簡易HTML
+├── Dockerfile
+└── docker-compose.yml
 ```
-
-`cmd/api/main.go`でSQLite Storeを生成してHandlerへ注入し、Go 1.22以降のメソッド付きパターンで各ルートを`http.ServeMux`へ登録します。
 
 ## API
 
@@ -56,165 +56,89 @@ Handler側に小さなStore interfaceを置き、テストではFake Storeを注
 | GET | `/version` | バージョン情報 |
 | GET | `/expenses` | 支出一覧 |
 | GET | `/expenses/{id}` | 支出の1件取得 |
-| POST | `/expenses` | 支出の作成 |
-| PUT | `/expenses/{id}` | 支出の更新 |
-| DELETE | `/expenses/{id}` | 支出の削除 |
-| GET | `/expenses/summary` | 件数と合計金額の取得 |
+| POST | `/expenses` | 支出作成 |
+| PUT | `/expenses/{id}` | 支出更新 |
+| DELETE | `/expenses/{id}` | 支出削除 |
+| GET | `/expenses/summary` | 件数と合計金額 |
 | GET | `/categories` | カテゴリ一覧 |
 | GET | `/categories/{id}` | カテゴリの1件取得 |
-| POST | `/categories` | カテゴリの作成 |
+| POST | `/categories` | カテゴリ作成 |
 | GET | `/tags` | タグ一覧 |
-| POST | `/tags` | タグの作成 |
-| POST | `/expenses/{expenseID}/tags/{tagID}` | 支出へタグを関連付け |
+| POST | `/tags` | タグ作成 |
+| POST | `/expenses/{expenseID}/tags/{tagID}` | 支出とタグの関連付け |
+| GET | `/sandbox/` | 簡易確認フォーム |
 
-### 支出一覧の検索条件
+## Expense API
 
-`GET /expenses`では、次のクエリパラメータを組み合わせられます。
+Expense、Category、TagのIDにはUUIDを使用します。Expenseの作成・更新では、先に作成したCategoryのUUIDが必要です。
 
-| Parameter | Example | Description |
-|---|---|---|
-| `category` | `food` | カテゴリの完全一致 |
-| `limit` | `10` | 最大取得件数（1以上） |
-| `offset` | `20` | 先頭から飛ばす件数（0以上、limit必須） |
-
-```bash
-curl "http://localhost:8080/expenses?category=food&limit=10&offset=0"
-```
-
-不正な`limit`・`offset`には`400 Bad Request`を返します。
-
-### Expenseの例
+リクエスト例：
 
 ```json
 {
-  "id": 1,
   "title": "coffee",
   "amount": 500,
-  "category": "food"
+  "category_id": "01900000-0000-7000-8000-000000000001"
 }
 ```
 
-### 入力ルール
+レスポンス例：
 
-POST・PUTでは、JSONをDecodeした後にtitleとcategoryの前後空白を除去してからvalidationを行います。
+```json
+{
+  "id": "01900000-0000-7000-8000-000000000002",
+  "title": "coffee",
+  "amount": 500,
+  "category_id": "01900000-0000-7000-8000-000000000001",
+  "created_at": "2026-09-09T12:00:00Z"
+}
+```
+
+入力ルール：
 
 | Field | Rule |
 |---|---|
-| `title` | 空文字・空白のみは不可 |
-| `amount` | 1以上の整数 |
-| `category` | 空文字・空白のみは不可 |
+| `title` | 前後の空白を除去し、空文字は禁止 |
+| `amount` | 1以上 |
+| `category_id` | nil UUIDは禁止。存在確認はSQLiteの外部キー制約で行う |
 
-### CRUDの使用例
-
-作成：
-
-```bash
-curl -i -X POST http://localhost:8080/expenses \
-  -H "Content-Type: application/json" \
-  -d '{"title":"coffee","amount":500,"category":"food"}'
-```
-
-一覧・1件取得：
-
-```bash
-curl -i http://localhost:8080/expenses
-curl -i http://localhost:8080/expenses/1
-```
-
-更新：
-
-```bash
-curl -i -X PUT http://localhost:8080/expenses/1 \
-  -H "Content-Type: application/json" \
-  -d '{"title":"latte","amount":550,"category":"food"}'
-```
-
-削除：
-
-```bash
-curl -i -X DELETE http://localhost:8080/expenses/1
-```
-
-作成は`201 Created`、取得・更新は`200 OK`、削除は`204 No Content`を返します。
-
-### Summaryの例
-
-```json
-{
-  "count": 2,
-  "total_amount": 1050
-}
-```
-
-集計SQLでは`COUNT`、`SUM`、`COALESCE`を使用し、Expenseが0件の場合も合計金額を`0`として返します。
-
-### Category API
-
-カテゴリ作成：
+一覧取得は現在、`created_at DESC`による全件取得です。以前のCategory絞り込み、limit、offsetはUUID移行を優先するため一時的に外しており、後から設計し直します。0件の場合は`null`ではなく`[]`を返します。
 
 ```bash
 curl -i -X POST http://localhost:8080/categories \
   -H "Content-Type: application/json" \
   -d '{"name":"food"}'
-```
 
-一覧・1件取得：
-
-```bash
-curl -i http://localhost:8080/categories
-curl -i http://localhost:8080/categories/{categoryID}
-```
-
-作成リクエストは`name`だけを受け付けます。未知のJSONフィールドは`400 Bad Request`、同名カテゴリは`409 Conflict`になります。
-
-### Tag API
-
-タグ作成・一覧：
-
-```bash
-curl -i -X POST http://localhost:8080/tags \
+curl -i -X POST http://localhost:8080/expenses \
   -H "Content-Type: application/json" \
-  -d '{"name":"outside"}'
+  -d '{"title":"coffee","amount":500,"category_id":"<category UUID>"}'
 
-curl -i http://localhost:8080/tags
+curl -i http://localhost:8080/expenses
+curl -i http://localhost:8080/expenses/<expense UUID>
 ```
 
-タグ名は前後の空白を除去して小文字へ正規化されます。同名タグは`409 Conflict`になります。
-
-### ExpenseとTagの関連付け
-
-既存のExpenseとTagを関連付けます。リクエストボディは不要です。
-
-```bash
-curl -i -X POST \
-  http://localhost:8080/expenses/{expenseID}/tags/{tagID}
-```
-
-成功時は`204 No Content`を返します。`expense_tags`中間テーブルの複合主キーにより、同じExpenseとTagの組み合わせは重複保存できません。現時点では、存在しないIDと重複関連付けのDBエラーはいずれも`500 Internal Server Error`として返します。
+作成は`201 Created`、取得・更新は`200 OK`、削除は`204 No Content`を返します。不正なUUIDは`400 Bad Request`、存在しないExpenseは`404 Not Found`です。
 
 ## データベース
 
-アプリケーション起動時に`CREATE TABLE IF NOT EXISTS`を実行し、テーブルがなければ自動作成します。現時点では独立したmigrationツールは使用していません。
+起動時に`CREATE TABLE IF NOT EXISTS`を実行します。SQLite接続では外部キー検証を有効にしています。
 
 ```sql
-CREATE TABLE IF NOT EXISTS expenses (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE expenses (
+    id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
-    amount INTEGER,
-    category TEXT
+    amount INTEGER NOT NULL,
+    category_id TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (category_id) REFERENCES categories(id)
 );
 ```
 
-TagとExpenseの多対多関係には中間テーブルを使用します。
+ExpenseとTagは中間テーブルで多対多に関連付けます。
 
 ```sql
-CREATE TABLE IF NOT EXISTS tags (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS expense_tags (
-    expense_id INTEGER NOT NULL,
+CREATE TABLE expense_tags (
+    expense_id TEXT NOT NULL,
     tag_id TEXT NOT NULL,
     PRIMARY KEY (expense_id, tag_id),
     FOREIGN KEY (expense_id) REFERENCES expenses(id),
@@ -222,41 +146,36 @@ CREATE TABLE IF NOT EXISTS expense_tags (
 );
 ```
 
-SQLite接続では外部キー検証を有効化し、存在しないExpenseやTagへの関連付けをDB側でも防ぎます。
+まだ独立したmigration機構はありません。既存の整数ID版DBは`CREATE TABLE IF NOT EXISTS`では更新されないため、開発中のUUID移行では新しいDBを使う必要があります。migration導入は次の設計課題です。
 
-一覧取得では`ExpenseFilter`を使い、指定された条件だけをSQLへ追加します。
+## テスト
 
-```text
-Categoryあり → WHERE category = ?
-Limitあり    → LIMIT ?
-Offsetあり   → OFFSET ?
+通常のUnit・Storeテスト：
+
+```bash
+go vet ./...
+go test ./...
 ```
 
-値は文字列連結せずプレースホルダーの引数として渡します。結果は常にID昇順です。
+Integrationテストはビルドタグで分離しています。
 
-## エラーハンドリング
+```bash
+go test -tags=integration ./internal/handler
+```
 
-| Error | Status |
-|---|---|
-| Invalid JSON | 400 |
-| Invalid ID | 400 |
-| Invalid filter | 400 |
-| Expense Not Found | 404 |
-| Category Not Found | 404 |
-| Category / Tag Already Exists | 409 |
-| Method Not Allowed | 405 |
-| Internal Error | 500 |
+特定のテストだけ実行する例：
 
-存在しないExpenseの取得では`sql.ErrNoRows`をアプリケーションのNot Foundエラーへ変換します。更新・削除では`RowsAffected()`が0の場合にNot Foundとして扱います。
+```bash
+go test ./internal/handler -run '^TestListExpenses$' -count=1 -v
+```
+
+- `-run`：実行するテスト名を正規表現で指定（パッケージ全体のコンパイルは行う）
+- `-count=1`：テストキャッシュを使わない
+- `-v`：サブテストを含む実行結果を表示
+
+Handlerテストは`httptest`とFake Store、StoreテストとIntegrationテストは`t.TempDir()`内のSQLite DBを使用します。
 
 ## ローカル起動
-
-必要なもの：
-
-- Go（`go.mod`に記載されたバージョン）
-- curlなどのHTTPクライアント
-
-最短手順：
 
 ```bash
 go mod download
@@ -264,94 +183,48 @@ go test ./...
 go run ./cmd/api
 ```
 
-SQLiteのパスは`DB_PATH`環境変数で変更できます。未指定の場合は`expenses.db`を使用します。
+SQLiteパスは`DB_PATH`で変更できます。未指定時は`expenses.db`です。
 
 ```bash
 DB_PATH=./expenses-dev.db go run ./cmd/api
 ```
 
-## テスト
-
-```bash
-go vet ./...
-go test ./...
-```
-
-- `httptest`とFake StoreによるHandlerテスト
-- 一時SQLite DBを使ったStoreテスト
-- HandlerとSQLite Storeを接続したIntegrationテスト
-- `t.TempDir()`によるテストケースごとのDB分離
-
 ## Docker Compose
-
-Dockerfileは、Goイメージでバイナリをビルドし、実行用の`debian:stable-slim`へバイナリだけをコピーするマルチステージ構成です。
-
-起動：
 
 ```bash
 docker compose up --build -d
-```
-
-ログ：
-
-```bash
 docker compose logs -f api
-```
-
-終了：
-
-```bash
 docker compose down
 ```
 
-SQLiteデータは`expense-data`という名前付きvolumeへ保存されます。通常の`docker compose down`ではvolumeは削除されません。
-
-動作確認：
-
-```bash
-curl -i http://localhost:8080/health
-curl -i http://localhost:8080/expenses
-```
+SQLiteは`expense-data` volumeへ保存されます。`docker compose down`だけではvolumeは削除されません。
 
 ## 学習した内容
 
-- `http.ServeMux`のメソッド付きルーティング
-- JSONのEncode / Decode
+- `http.ServeMux`のメソッド付きルーティングと`PathValue`
+- JSON Encode / DecodeとRequest型
 - NormalizeとValidate
 - `Query` / `QueryRow` / `Exec`
-- `LastInsertId` / `RowsAffected` / `sql.ErrNoRows`
-- SQL集計と動的な検索条件
-- UUID v7によるCategory・TagのID生成
-- Request DTOと未知フィールドの拒否
-- 多対多の中間テーブル、複合主キー、外部キー
-- interfaceと依存性注入
-- Unit Test / Integration Test
-- Dockerのマルチステージビルド
-- Docker volumeによるSQLite永続化
+- `RETURNING` / `RowsAffected` / `sql.ErrNoRows`
+- UUID v7の生成、URL文字列の`uuid.Parse`、nil UUIDの検証
+- Category外部キーとExpense・Tagの多対多中間テーブル
+- Handler側interfaceによる依存性注入
+- interfaceの暗黙的な実装とメソッドシグネチャ
+- Fake Storeを使ったHandler Unit Test
+- SQLite Store Testとビルドタグ付きIntegration Test
+- `go test -run`が実行対象だけを絞り、パッケージ全体はコンパイルすること
+- DockerマルチステージビルドとSQLite volume
 
-## 現在の開発状況
+## 現在の状況と次の課題
 
-- Expense CRUD：実装済み
-- カテゴリ絞り込み：実装済み
-- limit・offset：実装済み
-- Summary API：実装済み
-- Category作成・一覧・1件取得：実装済み
-- Tag作成・一覧：実装済み
-- ExpenseへのTag関連付け：実装済み
-- Expenseに関連するTagの取得・解除：未実装
-- Expense・CategoryのHandler / Store / Integrationテスト：実装済み
+- Expense CRUD：UUID・`category_id`・`created_at`対応済み
+- Category：UUIDで作成・一覧・1件取得
+- Tag：UUIDで作成・一覧
+- ExpenseとTagの関連付け：両方のUUIDに対応
+- Summary：件数と合計金額を取得
+- Category絞り込み・limit・offset：再設計のため一時停止
 - Tag・ExpenseTagの自動テスト：未実装
-- Docker ComposeとSQLite永続化：実装済み
 - Graceful shutdown：未完成
+- DB migration：未実装
 
-Graceful shutdownは今後の課題です。現在はHTTPサーバーをgoroutineで起動してmain goroutineを待機させていますが、SIGINT・SIGTERMの受信、`server.Shutdown`、終了タイムアウトはまだ実装していません。
-
-## Future Work
-
-- Graceful shutdown
-- Expenseに関連するTagの取得・解除
-- Tag関連付けエラーの404・409への変換
-- PostgreSQL対応
-- GitHub Actions
-- Kubernetes
-- Terraform
+将来は、ExpenseでRequest/Response DTO・UseCase・Repository境界を固めた後、CategoryとTagへ展開します。その上で個人向けのTask、Note、Habit、Budgetなどを機能単位で追加し、必要性を測定しながらキャッシュ、gRPC、非同期ジョブ、認証、監視へ進みます。
