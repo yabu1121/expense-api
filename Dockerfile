@@ -13,6 +13,7 @@ FROM debian:stable-slim
     WORKDIR /app
 
     COPY --from=builder /app/expense-api ./expense-api
+    COPY --from=builder /app/sandbox ./sandbox
     CMD ["./expense-api"]
 
 # docker build -t expense-api:multi .
