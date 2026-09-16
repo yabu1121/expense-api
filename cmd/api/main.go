@@ -1,16 +1,37 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/yabu1121/expense-api/app/config"
+	"github.com/yabu1121/expense-api/app/server"
 	"github.com/yabu1121/expense-api/internal/handler"
 	"github.com/yabu1121/expense-api/internal/store"
 )
 
 func main() {
+	databaseURL, err := config.DatabaseURL()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+
+	db, err := server.NewDB(ctx, databaseURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
 	dbPath := os.Getenv("DB_PATH")
 
 	if dbPath == "" {
@@ -57,13 +78,13 @@ func main() {
 		http.Redirect(w, r, "/sandbox/", http.StatusTemporaryRedirect)
 	})
 
-	server := &http.Server{
+	httpServer := &http.Server{
 		Addr:    ":8080",
 		Handler: mux,
 	}
 	go func() {
 		fmt.Println("server is running on port 8080")
-		if err := server.ListenAndServe(); err != nil {
+		if err := httpServer.ListenAndServe(); err != nil {
 			log.Fatal(err)
 		}
 	}()
